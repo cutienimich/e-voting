@@ -1,0 +1,64 @@
+http://localhost:5000/api/auth/login
+
+{
+  "studentId": "2021-99999",
+  "password": "password123"
+}
+
+
+http://localhost:5000/api/admin/create-admin
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+
+http://localhost:5000/api/auth/admin/login
+
+
+
+http://localhost:5000/api/auth/register
+
+{
+  "studentId": "2021-12345",
+  "name": "Juan dela Cruz",
+  "email": "juan@school.edu",
+  "password": "password123"
+}
+
+http://localhost:5000/api/admin/enroll-student
+
+{
+  "studentId": "24-00235"
+}
+
+POST http://localhost:5000/api/auth/admin/login
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+POST http://localhost:5000/api/admin/enrolled-students
+
+{
+  "studentId": "2021-12345",
+  "name": "Juan dela Cruz",
+  "course": "BSIT",
+  "year": "3"
+}
+
+POST http://localhost:5000/api/auth/register
+{
+  "studentId": " ",
+  "name": "Juan dela Cruz",
+  "course": "BSIT",
+  "year": "3"
+}
+
+POST http://localhost:5000/api/auth/login
+{
+  "studentId": "2021-12345",
+  "password": "password123"
+}
