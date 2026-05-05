@@ -108,11 +108,29 @@ export const loginStudent = async (req, res) => {
 
     // Face not enrolled yet — redirect to enrollment
     if (!faceEnrolled) {
+      // TEMPORARY — skip face scan, issue tokens directly
+      const accessToken = generateAccessToken(student);
+      const refreshToken = generateRefreshToken();
+
+      await prisma.refreshToken.create({
+        data: {
+          token: refreshToken,
+          studentId: student.id,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        }
+      });
+
       return res.json({
         success: true,
-        faceEnrolled: false,
-        message: "Credentials verified. Please enroll your face to continue.",
-        data: { studentId: student.studentId, name: student.name }
+        faceEnrolled: true,
+        deviceTrusted: true, // treat as trusted temporarily
+        message: "Login successful",
+        data: {
+          accessToken,
+          refreshToken,
+          name: student.name,
+          studentId: student.studentId
+        }
       });
     }
 
@@ -154,13 +172,29 @@ export const loginStudent = async (req, res) => {
 
     // New device — need face scan
     if (!imageBase64) {
+      // TEMPORARY — skip face scan, issue tokens directly
+      const accessToken = generateAccessToken(student);
+      const refreshToken = generateRefreshToken();
+
+      await prisma.refreshToken.create({
+        data: {
+          token: refreshToken,
+          studentId: student.id,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        }
+      });
+
       return res.json({
         success: true,
         faceEnrolled: true,
-        deviceTrusted: false,
-        requiresFaceScan: true,
-        message: "New device detected. Please complete face verification.",
-        data: { studentId: student.studentId, name: student.name }
+        deviceTrusted: true, // treat as trusted temporarily
+        message: "Login successful",
+        data: {
+          accessToken,
+          refreshToken,
+          name: student.name,
+          studentId: student.studentId
+        }
       });
     }
 

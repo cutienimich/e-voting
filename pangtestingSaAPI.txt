@@ -32,6 +32,13 @@ http://localhost:5000/api/admin/enroll-student
 {
   "studentId": "24-00235"
 }
+{
+  "success": true,
+  "message": "Student enrolled",
+  "data": {
+    "studentId": "24-00235"
+  }
+}
 
 POST http://localhost:5000/api/auth/admin/login
 
@@ -61,4 +68,38 @@ POST http://localhost:5000/api/auth/login
 {
   "studentId": "2021-12345",
   "password": "password123"
+}
+
+
+{
+  "success": true,
+  "message": "Student added to enrolled list",
+  "data": {
+    "id": "cmorvhj1m0002l97sjpy30tyx",
+    "studentId": "24-62060",
+    "name": "Caira Grace San Pascual",
+    "course": "BSIT",
+    "year": "2",
+    "createdAt": "2026-05-05T00:10:58.853Z"
+  }
+}
+
+
+===================================================================
+http://localhost:5000/api/auth/admin/login
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNtb2QwMDk1YTAwMDB3bXZmOThjb2c2bzYiLCJ1c2VybmFtZSI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzc3OTUwMDc2LCJleHAiOjE3Nzc5NjQ0NzZ9.gDd3ifTSajRmxGsf-sbEyymvWkmbBWkITvgN4hjrT04
+
+=====================================================
+http://localhost:5000/api/admin/enrolled-students
+{
+  "studentId": "24-15680",
+  "name": "ROchelle dela Cruz",
+  "course": "BSIT",
+  "year": "2"
 }
