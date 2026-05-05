@@ -108,6 +108,7 @@ export const loginStudent = async (req, res) => {
 
     // Face not enrolled yet — redirect to enrollment
     if (!faceEnrolled) {
+<<<<<<< HEAD
       // TEMPORARY — skip face scan, issue tokens directly
       const accessToken = generateAccessToken(student);
       const refreshToken = generateRefreshToken();
@@ -132,6 +133,32 @@ export const loginStudent = async (req, res) => {
           studentId: student.studentId
         }
       });
+=======
+// TEMPORARY — skip face scan, issue tokens directly
+const accessToken = generateAccessToken(student);
+const refreshToken = generateRefreshToken();
+
+await prisma.refreshToken.create({
+  data: {
+    token: refreshToken,
+    studentId: student.id,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  }
+});
+
+return res.json({
+  success: true,
+  faceEnrolled: true,
+  deviceTrusted: true, // treat as trusted temporarily
+  message: "Login successful",
+  data: {
+    accessToken,
+    refreshToken,
+    name: student.name,
+    studentId: student.studentId
+  }
+});
+>>>>>>> master
     }
 
     // Check if device is trusted
