@@ -123,7 +123,18 @@ export default function LoginPage() {
     }
 
     // New device — need face scan
-    setStep(2);
+          // Face enrolled — proceed to face scan
+      // TODO: re-enable when face service ready
+      // setStep(2);
+
+      // TEMPORARY — skip face scan, go straight to elections
+      localStorage.setItem("iboto-access-token", data.data?.accessToken || "temp");
+      localStorage.setItem("iboto-refresh-token", data.data?.refreshToken || "temp");
+      localStorage.setItem("iboto-student", JSON.stringify({
+        name: data.data.name,
+        studentId: data.data.studentId
+      }));
+router.push("/elections");
   } catch {
     setError("Cannot connect to server. Try again.");
   } finally {
