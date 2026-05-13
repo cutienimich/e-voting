@@ -1,8 +1,10 @@
 "use client";
+import * as XLSX from "xlsx";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function AdminStudentsPage() {
+  const [bulkPreview, setBulkPreview] = useState([]);
   const [dark, setDark] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [students, setStudents] = useState([]);
@@ -74,29 +76,61 @@ export default function AdminStudentsPage() {
   };
 
   const handleBulkAdd = async () => {
-    if (!bulkText.trim()) { setFormError("Paste student data first"); return; }
+    if (bulkPreview.length === 0) { setFormError("No students to upload"); return; }
     setFormLoading(true);
     setFormError("");
     try {
-      const lines = bulkText.trim().split("\n");
-      const students = lines.map(line => {
-        const [studentId, name, course, year] = line.split(",").map(s => s.trim());
-        return { studentId, name, course, year };
-      }).filter(s => s.studentId && s.name);
-
       const res = await fetch("http://localhost:5000/api/admin/enrolled-students/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ students })
+        body: JSON.stringify({ students: bulkPreview })
       });
       const data = await res.json();
       if (!data.success) { setFormError(data.message); return; }
-      setFormSuccess(`${data.data.count} students added!`);
-      setBulkText("");
-      setTimeout(() => { setShowBulkAdd(false); setFormSuccess(""); }, 1500);
+      setFormSuccess(`${data.data.count} students uploaded successfully!`);
+      setBulkPreview([]);
+      fetchStudents();
+      setTimeout(() => { setShowBulkAdd(false); setFormSuccess(""); }, 2000);
     } catch { setFormError("Server error. Try again."); }
     finally { setFormLoading(false); }
   };
+
+const handleExcelFile = async (file) => {
+  try {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        console.log("Raw rows:", rows);
+        console.log("Parsed students:", students);
+
+        const students = rows.map(row => ({
+          studentId: String(row.studentId || row["Student ID"] || row["student_id"] || "").trim(),
+          name: String(row.name || row["Name"] || row["Full Name"] || "").trim(),
+          course: String(row.course || row["Course"] || "").trim(),
+          year: String(row.year || row["Year"] || "").trim(),
+        })).filter(s => s.studentId && s.name);
+
+        if (students.length === 0) {
+          setFormError("No valid data found. Check column headers: studentId, name, course, year");
+          return;
+        }
+
+        setBulkPreview(students);
+        setFormError("");
+      } catch (err) {
+        setFormError("Failed to parse file. Make sure it is .xlsx format.");
+      }
+    };
+    reader.onerror = () => setFormError("Failed to read file.");
+    reader.readAsArrayBuffer(file);
+  } catch (err) {
+    setFormError("Failed to read file. Make sure it is .xlsx format.");
+  }
+};
 
   const handleLogout = () => {
     localStorage.removeItem("iboto-admin-token");
@@ -308,32 +342,68 @@ export default function AdminStudentsPage() {
 
       {/* BULK ADD MODAL */}
       {showBulkAdd && (
-        <div className="modal-overlay" onClick={() => !formLoading && setShowBulkAdd(false)}>
-          <div className="modal fade-up" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: 22, fontWeight: 800, color: t.text, marginBottom: 6 }}>Bulk Add Students</h2>
-            <p style={{ fontSize: 14, color: t.subtext, marginBottom: 8 }}>Paste student data — one per line.</p>
-            <div style={{ background: "rgba(45,140,78,0.06)", border: "1px solid rgba(45,140,78,0.2)", borderRadius: 8, padding: "10px 12px", marginBottom: 16, fontSize: 12, color: t.subtext, fontFamily: "monospace" }}>
-              Format: studentId, Full Name, Course, Year<br />
-              Example: 2021-00001, Juan dela Cruz, BSIT, 3
-            </div>
-            <textarea
-              className="input-field"
-              style={{ height: 160, resize: "vertical", fontFamily: "monospace", fontSize: 13 }}
-              placeholder={"2021-00001, Juan dela Cruz, BSIT, 3\n2021-00002, Maria Santos, BSCS, 2"}
-              value={bulkText}
-              onChange={e => setBulkText(e.target.value)}
-            />
-            {formError && <div className="error-box" style={{ marginTop: 10 }}>{formError}</div>}
-            {formSuccess && <div className="success-box" style={{ marginTop: 10 }}>{formSuccess}</div>}
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button className="btn-primary" onClick={handleBulkAdd} disabled={formLoading} style={{ flex: 1 }}>
-                {formLoading ? "Adding..." : "Bulk Add"}
-              </button>
-              <button className="btn-ghost" onClick={() => setShowBulkAdd(false)} disabled={formLoading}>Cancel</button>
-            </div>
+  <div className="modal-overlay" onClick={() => !formLoading && setShowBulkAdd(false)}>
+    <div className="modal fade-up" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+      <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: 22, fontWeight: 800, color: t.text, marginBottom: 6 }}>Bulk Add Students</h2>
+      <p style={{ fontSize: 14, color: t.subtext, marginBottom: 16 }}>Upload an Excel file (.xlsx) with student data.</p>
+
+      {/* Format guide */}
+      <div style={{ background: "rgba(45,140,78,0.06)", border: "1px solid rgba(45,140,78,0.2)", borderRadius: 8, padding: "10px 12px", marginBottom: 16, fontSize: 12, color: t.subtext }}>
+        <strong style={{ color: t.text }}>Required columns (row 1 = header):</strong><br />
+        <span style={{ fontFamily: "monospace" }}>studentId | name | course | year</span>
+      </div>
+
+      {/* Drop zone */}
+      <div
+        onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = "#2D8C4E"; }}
+        onDragLeave={e => { e.currentTarget.style.borderColor = t.border; }}
+        onDrop={e => {
+          e.preventDefault();
+          e.currentTarget.style.borderColor = t.border;
+          const file = e.dataTransfer.files[0];
+          if (file) handleExcelFile(file);
+        }}
+        onClick={() => document.getElementById("excel-upload").click()}
+        style={{ border: `2px dashed ${t.border}`, borderRadius: 12, padding: "32px 20px", textAlign: "center", cursor: "pointer", transition: "border-color 0.2s", marginBottom: 16 }}
+      >
+        <svg width="32" height="32" fill="none" stroke="#2D8C4E" strokeWidth="1.5" viewBox="0 0 24 24" style={{ margin: "0 auto 12px", display: "block" }}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        <p style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>Click or drag Excel file here</p>
+        <p style={{ fontSize: 12, color: t.subtext }}>.xlsx files only</p>
+        <input id="excel-upload" type="file" accept=".xlsx" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) handleExcelFile(e.target.files[0]); }} />
+      </div>
+
+      {/* Preview */}
+      {bulkPreview.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 8 }}>{bulkPreview.length} students found — preview:</p>
+          <div style={{ maxHeight: 160, overflowY: "auto", border: `1px solid ${t.border}`, borderRadius: 10 }}>
+            {bulkPreview.slice(0, 5).map((s, i) => (
+              <div key={i} style={{ padding: "8px 12px", borderBottom: `1px solid ${t.border}`, fontSize: 13, display: "flex", gap: 12 }}>
+                <span style={{ color: t.subtext, fontFamily: "monospace" }}>{s.studentId}</span>
+                <span style={{ color: t.text, fontWeight: 600 }}>{s.name}</span>
+                <span style={{ color: t.subtext }}>{s.course} · Y{s.year}</span>
+              </div>
+            ))}
+            {bulkPreview.length > 5 && (
+              <div style={{ padding: "8px 12px", fontSize: 12, color: t.subtext }}>+{bulkPreview.length - 5} more rows...</div>
+            )}
           </div>
         </div>
       )}
+
+      {formError && <div className="error-box" style={{ marginBottom: 10 }}>{formError}</div>}
+      {formSuccess && <div className="success-box" style={{ marginBottom: 10 }}>{formSuccess}</div>}
+
+      <div style={{ display: "flex", gap: 10 }}>
+        <button className="btn-primary" onClick={handleBulkAdd} disabled={formLoading || bulkPreview.length === 0} style={{ flex: 1 }}>
+          {formLoading ? "Uploading..." : `Upload ${bulkPreview.length} Students`}
+        </button>
+        <button className="btn-ghost" onClick={() => { setShowBulkAdd(false); setBulkPreview([]); }} disabled={formLoading}>Cancel</button>
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }
