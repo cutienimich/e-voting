@@ -17,7 +17,6 @@ const POSITIONS = [
   "2nd Year Senator",
 ];
 
-
 export default function AdminElectionsPage() {
   const [dark, setDark] = useState(false);
   const [mounted, setMounted] = useState(false);
