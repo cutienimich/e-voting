@@ -2,6 +2,21 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+// ─── SSG Positions ─────────────────────────────────────────
+const POSITIONS = [
+  "President",
+  "Vice President",
+  "Secretary",
+  "Assistant Secretary",
+  "Treasurer",
+  "Auditor",
+  "Business Manager",
+  "Public Information Officer (P.I.O.)",
+  "4th Year Senator",
+  "3rd Year Senator",
+  "2nd Year Senator",
+];
+
 export default function AdminElectionsPage() {
   const [dark, setDark] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -15,13 +30,25 @@ export default function AdminElectionsPage() {
   const [showAddCandidate, setShowAddCandidate] = useState(false);
   const [selectedElection, setSelectedElection] = useState(null);
   const [showCandidates, setShowCandidates] = useState(false);
+  const [editCandidate, setEditCandidate] = useState(null); // candidate being edited
 
   // Forms
   const [electionForm, setElectionForm] = useState({ name: "" });
-  const [candidateForm, setCandidateForm] = useState({ name: "", position: "" });
+  const [candidateForm, setCandidateForm] = useState({
+    name: "",
+    position: POSITIONS[0],
+    partylist: "",
+    motto: "",
+    platforms: [""],
+    photo: null,
+    photoPreview: null,
+  });
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState("");
   const [formSuccess, setFormSuccess] = useState("");
+
+  // Filter inside candidates modal
+  const [filterPos, setFilterPos] = useState("All");
 
   const router = useRouter();
 
@@ -60,10 +87,10 @@ export default function AdminElectionsPage() {
     }
   };
 
+  // ── Election CRUD ──────────────────────────────────────────
   const handleCreateElection = async () => {
     if (!electionForm.name.trim()) { setFormError("Election name required"); return; }
-    setFormLoading(true);
-    setFormError("");
+    setFormLoading(true); setFormError("");
     try {
       const res = await fetch("http://localhost:5000/api/admin/elections", {
         method: "POST",
@@ -80,35 +107,13 @@ export default function AdminElectionsPage() {
     finally { setFormLoading(false); }
   };
 
-  const handleAddCandidate = async () => {
-    if (!candidateForm.name.trim() || !candidateForm.position.trim()) { setFormError("All fields required"); return; }
-    setFormLoading(true);
-    setFormError("");
-    try {
-      const res = await fetch("http://localhost:5000/api/admin/elections/candidate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ electionId: selectedElection.id, name: candidateForm.name.trim(), position: candidateForm.position.trim() })
-      });
-      const data = await res.json();
-      if (!data.success) { setFormError(data.message); return; }
-      setFormSuccess("Candidate added!");
-      setCandidateForm({ name: "", position: "" });
-      fetchElections();
-      setTimeout(() => setFormSuccess(""), 1500);
-    } catch { setFormError("Server error. Try again."); }
-    finally { setFormLoading(false); }
-  };
-
   const handleOpenElection = async (id) => {
     try {
       const res = await fetch(`http://localhost:5000/api/admin/elections/${id}/open`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${getToken()}` }
+        method: "PUT", headers: { Authorization: `Bearer ${getToken()}` }
       });
       const data = await res.json();
-      if (data.success) fetchElections();
-      else alert(data.message);
+      if (data.success) fetchElections(); else alert(data.message);
     } catch { alert("Server error"); }
   };
 
@@ -116,12 +121,113 @@ export default function AdminElectionsPage() {
     if (!confirm("Close this election? This cannot be undone.")) return;
     try {
       const res = await fetch(`http://localhost:5000/api/admin/elections/${id}/close`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${getToken()}` }
+        method: "PUT", headers: { Authorization: `Bearer ${getToken()}` }
       });
       const data = await res.json();
-      if (data.success) fetchElections();
-      else alert(data.message);
+      if (data.success) fetchElections(); else alert(data.message);
+    } catch { alert("Server error"); }
+  };
+
+  // ── Candidate CRUD ─────────────────────────────────────────
+  const resetCandidateForm = () => setCandidateForm({
+    name: "", position: POSITIONS[0], partylist: "", motto: "", platforms: [""], photo: null, photoPreview: null,
+  });
+
+  const openAddCandidate = () => {
+    resetCandidateForm();
+    setEditCandidate(null);
+    setFormError(""); setFormSuccess("");
+    setShowAddCandidate(true);
+  };
+
+  const openEditCandidate = (candidate) => {
+    setCandidateForm({
+      name: candidate.name || "",
+      position: candidate.position || POSITIONS[0],
+      partylist: candidate.partylist || "",
+      motto: candidate.motto || "",
+      platforms: candidate.platforms?.length ? candidate.platforms : [""],
+      photo: null,
+      photoPreview: candidate.photoUrl || null,
+    });
+    setEditCandidate(candidate);
+    setFormError(""); setFormSuccess("");
+    setShowAddCandidate(true);
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCandidateForm(f => ({ ...f, photo: file, photoPreview: reader.result }));
+    reader.readAsDataURL(file);
+  };
+
+  const handlePlatformChange = (i, val) => {
+    const updated = [...candidateForm.platforms];
+    updated[i] = val;
+    setCandidateForm(f => ({ ...f, platforms: updated }));
+  };
+
+  const addPlatform = () => setCandidateForm(f => ({ ...f, platforms: [...f.platforms, ""] }));
+  const removePlatform = (i) => setCandidateForm(f => ({ ...f, platforms: f.platforms.filter((_, idx) => idx !== i) }));
+
+  const handleSaveCandidate = async () => {
+    if (!candidateForm.name.trim()) { setFormError("Candidate name is required"); return; }
+    setFormLoading(true); setFormError("");
+
+    try {
+      // Build FormData to support photo upload
+      const formData = new FormData();
+      formData.append("electionId", selectedElection.id);
+      formData.append("name", candidateForm.name.trim());
+      formData.append("position", candidateForm.position);
+      formData.append("partylist", candidateForm.partylist.trim());
+      formData.append("motto", candidateForm.motto.trim());
+      formData.append("platforms", JSON.stringify(candidateForm.platforms.filter(Boolean)));
+      if (candidateForm.photo) formData.append("photo", candidateForm.photo);
+
+      const url = editCandidate
+        ? `http://localhost:5000/api/admin/elections/candidate/${editCandidate.id}`
+        : "http://localhost:5000/api/admin/elections/candidate";
+      const method = editCandidate ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${getToken()}` },
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!data.success) { setFormError(data.message); return; }
+
+      setFormSuccess(editCandidate ? "Candidate updated!" : "Candidate added!");
+      resetCandidateForm();
+      fetchElections();
+      setTimeout(() => {
+        setShowAddCandidate(false);
+        setFormSuccess("");
+        // Refresh selected election data
+        setSelectedElection(prev => ({ ...prev, candidates: data.data?.candidates || prev.candidates }));
+      }, 1200);
+    } catch { setFormError("Server error. Try again."); }
+    finally { setFormLoading(false); }
+  };
+
+  const handleDeleteCandidate = async (candidateId) => {
+    if (!confirm("Remove this candidate?")) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/admin/elections/candidate/${candidateId}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${getToken()}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchElections();
+        setSelectedElection(prev => ({
+          ...prev,
+          candidates: prev.candidates.filter(c => c.id !== candidateId)
+        }));
+      } else alert(data.message);
     } catch { alert("Server error"); }
   };
 
@@ -130,6 +236,18 @@ export default function AdminElectionsPage() {
     localStorage.removeItem("iboto-admin");
     router.push("/admin/login");
   };
+
+  // ── Filtered candidates by position ───────────────────────
+  const filteredCandidates = (selectedElection?.candidates || []).filter(
+    c => filterPos === "All" || c.position === filterPos
+  );
+
+  // Group by position for display
+  const grouped = POSITIONS.reduce((acc, pos) => {
+    const group = filteredCandidates.filter(c => c.position === pos);
+    if (group.length > 0) acc[pos] = group;
+    return acc;
+  }, {});
 
   if (!mounted) return null;
   const t = dark ? theme.dark : theme.light;
@@ -181,6 +299,12 @@ export default function AdminElectionsPage() {
           display: flex; align-items: center; gap: 6px;
         }
         .btn-ghost:hover { border-color: #2D8C4E; color: #2D8C4E; }
+        .btn-icon {
+          background: transparent; border: 1px solid ${t.border}; border-radius: 7px;
+          padding: 5px 9px; cursor: pointer; font-size: 13px; transition: all 0.2s;
+          font-family: 'DM Sans', sans-serif;
+        }
+        .btn-icon:hover { border-color: #2D8C4E; }
         .input-field {
           width: 100%; padding: 11px 14px; border-radius: 10px;
           border: 1.5px solid ${t.border}; background: ${t.bg};
@@ -227,21 +351,31 @@ export default function AdminElectionsPage() {
         .modal {
           background: ${t.card}; border-radius: 16px; padding: 28px;
           width: 100%; max-width: 480px; border: 1px solid ${t.border};
+          max-height: 90vh; overflow-y: auto;
+        }
+        .modal-wide {
+          background: ${t.card}; border-radius: 16px; padding: 0;
+          width: 100%; max-width: 680px; border: 1px solid ${t.border};
+          max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;
         }
         .toggle-btn { background: none; border: none; cursor: pointer; padding: 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
         .toggle-btn:hover { background: rgba(45,140,78,0.1); }
         .error-box { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #EF4444; padding: 10px 14px; border-radius: 8px; font-size: 13px; }
         .success-box { background: rgba(45,140,78,0.1); border: 1px solid rgba(45,140,78,0.3); color: #2D8C4E; padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+        .pos-chip {
+          padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+          cursor: pointer; border: none; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+        }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
         .fade-up { animation: fadeUp 0.3s ease forwards; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
         .dot-live { width: 7px; height: 7px; border-radius: 50%; background: #2D8C4E; animation: pulse 2s infinite; display: inline-block; }
         .stat-card { background: ${t.card}; border: 1px solid ${t.border}; border-radius: 12px; padding: 20px 24px; }
+        ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: ${t.border}; border-radius: 10px; }
       `}</style>
 
-      {/* SIDEBAR */}
+      {/* ── SIDEBAR ───────────────────────────────────────────── */}
       <div style={{ width: 240, background: t.card, borderRight: `1px solid ${t.border}`, padding: "24px 16px", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 50 }}>
-        {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 32, paddingLeft: 8 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #1B4D2E, #2D8C4E)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ color: "white", fontFamily: "Playfair Display, serif", fontSize: 18, fontWeight: 800 }}>i</span>
@@ -252,7 +386,6 @@ export default function AdminElectionsPage() {
           </div>
         </div>
 
-        {/* Nav */}
         <nav style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
           <button className={`sidebar-link ${activeTab === "elections" ? "active" : ""}`} onClick={() => setActiveTab("elections")}>
             <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
@@ -268,7 +401,6 @@ export default function AdminElectionsPage() {
           </button>
         </nav>
 
-        {/* Admin info + logout */}
         <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, paddingLeft: 8 }}>
             <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #1B4D2E, #2D8C4E)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -294,7 +426,7 @@ export default function AdminElectionsPage() {
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
+      {/* ── MAIN CONTENT ──────────────────────────────────────── */}
       <div style={{ marginLeft: 240, flex: 1, padding: "32px 36px", minHeight: "100vh" }}>
 
         {/* Header */}
@@ -343,11 +475,7 @@ export default function AdminElectionsPage() {
           ) : (
             <>
               <div className="table-header">
-                <span>Election Name</span>
-                <span>Status</span>
-                <span>Candidates</span>
-                <span>Created</span>
-                <span>Actions</span>
+                <span>Election Name</span><span>Status</span><span>Candidates</span><span>Created</span><span>Actions</span>
               </div>
               {elections.map(election => (
                 <div key={election.id} className="table-row">
@@ -360,17 +488,14 @@ export default function AdminElectionsPage() {
                       ? <span className="badge-open"><span className="dot-live" />Live</span>
                       : election.startTime
                         ? <span className="badge-closed">Closed</span>
-                        : <span className="badge-draft">Draft</span>
-                    }
+                        : <span className="badge-draft">Draft</span>}
                   </div>
-                  <div style={{ fontSize: 14, color: t.text, fontWeight: 600 }}>
-                    {election.candidates?.length || 0}
-                  </div>
+                  <div style={{ fontSize: 14, color: t.text, fontWeight: 600 }}>{election.candidates?.length || 0}</div>
                   <div style={{ fontSize: 13, color: t.subtext }}>
                     {new Date(election.createdAt).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button className="btn-ghost" onClick={() => { setSelectedElection(election); setShowCandidates(true); }}>
+                    <button className="btn-ghost" onClick={() => { setSelectedElection(election); setFilterPos("All"); setShowCandidates(true); }}>
                       <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
                       Candidates
                     </button>
@@ -388,22 +513,19 @@ export default function AdminElectionsPage() {
         </div>
       </div>
 
-      {/* CREATE ELECTION MODAL */}
+      {/* ── CREATE ELECTION MODAL ─────────────────────────────── */}
       {showCreateElection && (
         <div className="modal-overlay" onClick={() => !formLoading && setShowCreateElection(false)}>
           <div className="modal fade-up" onClick={e => e.stopPropagation()}>
             <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: 22, fontWeight: 800, color: t.text, marginBottom: 6 }}>Create Election</h2>
             <p style={{ fontSize: 14, color: t.subtext, marginBottom: 24 }}>Set up a new election for Colegio de Montalban.</p>
-
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: t.subtext, marginBottom: 8 }}>Election Name</div>
-                <input className="input-field" placeholder="e.g. Student Council Election 2025" value={electionForm.name} onChange={e => setElectionForm({ name: e.target.value })} />
+                <input className="input-field" placeholder="e.g. SSG Elections 2026" value={electionForm.name} onChange={e => setElectionForm({ name: e.target.value })} />
               </div>
-
               {formError && <div className="error-box">{formError}</div>}
               {formSuccess && <div className="success-box">{formSuccess}</div>}
-
               <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
                 <button className="btn-primary" onClick={handleCreateElection} disabled={formLoading} style={{ flex: 1 }}>
                   {formLoading ? "Creating..." : "Create Election"}
@@ -415,62 +537,184 @@ export default function AdminElectionsPage() {
         </div>
       )}
 
-      {/* CANDIDATES MODAL */}
+      {/* ── VIEW CANDIDATES MODAL ─────────────────────────────── */}
       {showCandidates && selectedElection && (
         <div className="modal-overlay" onClick={() => setShowCandidates(false)}>
-          <div className="modal fade-up" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <div className="modal-wide fade-up" onClick={e => e.stopPropagation()}>
+
+            {/* Modal Header */}
+            <div style={{ padding: "22px 28px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: 20, fontWeight: 800, color: t.text }}>Candidates</h2>
-                <p style={{ fontSize: 13, color: t.subtext, marginTop: 2 }}>{selectedElection.name}</p>
+                <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: 20, fontWeight: 800, color: t.text }}>{selectedElection.name}</h2>
+                <p style={{ fontSize: 13, color: t.subtext, marginTop: 3 }}>{selectedElection.candidates?.length || 0} candidates enrolled</p>
               </div>
-              <button onClick={() => setShowCandidates(false)} style={{ background: "none", border: "none", cursor: "pointer", color: t.subtext }}>
-                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </button>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                {!selectedElection.isOpen && (
+                  <button className="btn-primary" onClick={() => { setShowCandidates(false); openAddCandidate(); }}>
+                    + Add Candidate
+                  </button>
+                )}
+                <button onClick={() => setShowCandidates(false)} style={{ background: "none", border: "none", cursor: "pointer", color: t.subtext }}>
+                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+              </div>
             </div>
 
-            {/* Candidate list */}
-            <div style={{ maxHeight: 240, overflowY: "auto", marginBottom: 20 }}>
-              {selectedElection.candidates?.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "24px 0", color: t.subtext, fontSize: 14 }}>No candidates yet.</div>
+            {/* Position filter chips */}
+            <div style={{ padding: "14px 28px", borderBottom: `1px solid ${t.border}`, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {["All", ...POSITIONS].map(pos => (
+                <button key={pos} className="pos-chip" onClick={() => setFilterPos(pos)} style={{
+                  background: filterPos === pos ? "#166534" : "rgba(45,140,78,0.08)",
+                  color: filterPos === pos ? "#fff" : "#2D8C4E",
+                }}>
+                  {pos === "All" ? "All" : pos.length > 22 ? pos.slice(0, 20) + "…" : pos}
+                </button>
+              ))}
+            </div>
+
+            {/* Candidates list grouped by position */}
+            <div style={{ overflowY: "auto", flex: 1, padding: "20px 28px" }}>
+              {selectedElection.isOpen && (
+                <div style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#F59E0B", marginBottom: 16 }}>
+                  ⚠️ Election is live. Candidates cannot be added or edited while voting is open.
+                </div>
+              )}
+
+              {Object.keys(grouped).length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 0", color: t.subtext }}>
+                  <div style={{ fontSize: 36, marginBottom: 8 }}>👤</div>
+                  <div style={{ fontSize: 14 }}>No candidates {filterPos !== "All" ? `for ${filterPos}` : "yet"}</div>
+                </div>
               ) : (
-                selectedElection.candidates?.map((c, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${t.border}` }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #1B4D2E, #2D8C4E)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <span style={{ color: "white", fontSize: 13, fontWeight: 700 }}>{c.name.charAt(0)}</span>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{c.name}</div>
-                        <div style={{ fontSize: 12, color: t.subtext }}>{c.position}</div>
-                      </div>
+                Object.entries(grouped).map(([pos, cands]) => (
+                  <div key={pos} style={{ marginBottom: 24 }}>
+                    {/* Position divider */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                      <div style={{ height: 1, flex: 1, background: t.border }} />
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#2D8C4E", textTransform: "uppercase", letterSpacing: 1, whiteSpace: "nowrap" }}>{pos}</span>
+                      <div style={{ height: 1, flex: 1, background: t.border }} />
                     </div>
+
+                    {cands.map((c, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "12px 14px", background: dark ? "rgba(255,255,255,0.03)" : "#f9fafb", borderRadius: 10, border: `1px solid ${t.border}`, marginBottom: 10 }}>
+                        {/* Photo */}
+                        {c.photoUrl || c.photoPreview ? (
+                          <img src={c.photoUrl || c.photoPreview} alt={c.name} style={{ width: 48, height: 48, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                        ) : (
+                          <div style={{ width: 48, height: 48, borderRadius: "50%", background: "linear-gradient(135deg, #1B4D2E, #2D8C4E)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <span style={{ color: "white", fontWeight: 700, fontSize: 16 }}>{c.name?.charAt(0)}</span>
+                          </div>
+                        )}
+
+                        {/* Info */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: t.text }}>{c.name}</div>
+                          {c.partylist && <div style={{ fontSize: 12, color: t.subtext, marginTop: 1 }}>🏛 {c.partylist}</div>}
+                          {c.motto && <div style={{ fontSize: 12, color: t.subtext, fontStyle: "italic", marginTop: 2 }}>"{c.motto}"</div>}
+                          {c.platforms?.filter(Boolean).length > 0 && (
+                            <div style={{ marginTop: 6 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "#2D8C4E", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>Platforms</div>
+                              {c.platforms.filter(Boolean).map((p, pi) => (
+                                <div key={pi} style={{ fontSize: 12, color: t.subtext }}>• {p}</div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        {!selectedElection.isOpen && (
+                          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                            <button className="btn-icon" onClick={() => { setShowCandidates(false); openEditCandidate(c); }} title="Edit">✏️</button>
+                            <button className="btn-icon" onClick={() => handleDeleteCandidate(c.id)} title="Delete" style={{ color: "#EF4444" }}>🗑</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 ))
               )}
             </div>
+          </div>
+        </div>
+      )}
 
-            {/* Add candidate form */}
-            {!selectedElection.isOpen && (
-              <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 14 }}>Add Candidate</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <input className="input-field" placeholder="Candidate name" value={candidateForm.name} onChange={e => setCandidateForm(p => ({ ...p, name: e.target.value }))} />
-                  <input className="input-field" placeholder="Position (e.g. President)" value={candidateForm.position} onChange={e => setCandidateForm(p => ({ ...p, position: e.target.value }))} />
-                  {formError && <div className="error-box">{formError}</div>}
-                  {formSuccess && <div className="success-box">{formSuccess}</div>}
-                  <button className="btn-primary" onClick={handleAddCandidate} disabled={formLoading}>
-                    {formLoading ? "Adding..." : "Add Candidate"}
-                  </button>
-                </div>
-              </div>
-            )}
+      {/* ── ADD / EDIT CANDIDATE MODAL ────────────────────────── */}
+      {showAddCandidate && selectedElection && (
+        <div className="modal-overlay" onClick={() => !formLoading && setShowAddCandidate(false)}>
+          <div className="modal fade-up" onClick={e => e.stopPropagation()}>
+            <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: 22, fontWeight: 800, color: t.text, marginBottom: 4 }}>
+              {editCandidate ? "Edit Candidate" : "Add Candidate"}
+            </h2>
+            <p style={{ fontSize: 13, color: t.subtext, marginBottom: 22 }}>{selectedElection.name}</p>
 
-            {selectedElection.isOpen && (
-              <div style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 10, padding: "12px 14px", fontSize: 13, color: "#F59E0B" }}>
-                ⚠️ Election is live. Cannot add candidates while voting is open.
+            {/* Photo upload */}
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ width: 80, height: 80, borderRadius: "50%", margin: "0 auto 10px", overflow: "hidden", border: "2px dashed #2D8C4E", background: "rgba(45,140,78,0.06)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+                onClick={() => document.getElementById("candidatePhoto").click()}>
+                {candidateForm.photoPreview
+                  ? <img src={candidateForm.photoPreview} alt="preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <span style={{ fontSize: 26 }}>📷</span>}
               </div>
-            )}
+              <input id="candidatePhoto" type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: "none" }} />
+              <button onClick={() => document.getElementById("candidatePhoto").click()}
+                style={{ background: "none", border: `1px solid ${t.border}`, borderRadius: 6, padding: "4px 12px", fontSize: 12, cursor: "pointer", color: t.subtext }}>
+                {candidateForm.photoPreview ? "Change Photo" : "Upload Photo"}
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Name */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: t.subtext, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Full Name *</div>
+                <input className="input-field" placeholder="e.g. Juan dela Cruz" value={candidateForm.name} onChange={e => setCandidateForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+
+              {/* Position dropdown */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: t.subtext, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Position *</div>
+                <select className="input-field" value={candidateForm.position} onChange={e => setCandidateForm(f => ({ ...f, position: e.target.value }))}>
+                  {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+
+              {/* Partylist */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: t.subtext, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Partylist</div>
+                <input className="input-field" placeholder="e.g. Alyansa" value={candidateForm.partylist} onChange={e => setCandidateForm(f => ({ ...f, partylist: e.target.value }))} />
+              </div>
+
+              {/* Motto */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: t.subtext, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Motto / Slogan</div>
+                <input className="input-field" placeholder="e.g. Serbisyo, Pagbabago, Pag-asa" value={candidateForm.motto} onChange={e => setCandidateForm(f => ({ ...f, motto: e.target.value }))} />
+              </div>
+
+              {/* Platforms */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: t.subtext, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Platforms / Advocacies</div>
+                {candidateForm.platforms.map((p, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <input className="input-field" style={{ marginBottom: 0 }} placeholder={`Platform ${i + 1}`} value={p} onChange={e => handlePlatformChange(i, e.target.value)} />
+                    {candidateForm.platforms.length > 1 && (
+                      <button onClick={() => removePlatform(i)} style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#EF4444", cursor: "pointer", padding: "0 10px", fontSize: 16 }}>×</button>
+                    )}
+                  </div>
+                ))}
+                <button onClick={addPlatform} style={{ background: "none", border: "1px dashed #2D8C4E", borderRadius: 8, color: "#2D8C4E", padding: "6px 14px", fontSize: 13, cursor: "pointer", width: "100%", marginTop: 2 }}>
+                  + Add Platform
+                </button>
+              </div>
+
+              {formError && <div className="error-box">{formError}</div>}
+              {formSuccess && <div className="success-box">{formSuccess}</div>}
+
+              <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                <button className="btn-primary" onClick={handleSaveCandidate} disabled={formLoading} style={{ flex: 1 }}>
+                  {formLoading ? "Saving..." : editCandidate ? "Save Changes" : "Add Candidate"}
+                </button>
+                <button className="btn-ghost" onClick={() => setShowAddCandidate(false)} disabled={formLoading}>Cancel</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -480,5 +724,5 @@ export default function AdminElectionsPage() {
 
 const theme = {
   light: { bg: "#F4F6FA", card: "#FFFFFF", text: "#0D0D0D", subtext: "#6B7280", border: "#E5E7EB" },
-  dark: { bg: "#0D1117", card: "#161B22", text: "#E6EDF3", subtext: "#8B949E", border: "#30363D" }
+  dark: { bg: "#0D1117", card: "#161B22", text: "#E6EDF3", subtext: "#8B949E", border: "#30363D" },
 };
