@@ -4,11 +4,28 @@ import { readContract } from "../utils/blockchain.js";
 export const getElections = async (req, res) => {
   try {
     const elections = await prisma.election.findMany({
+      where: {
+        OR: [
+          { isOpen: true },
+          { isOpen: false, endTime: { not: null } }
+        ]
+      },
       include: { candidates: true }
     });
     return res.json({ success: true, data: elections });
   } catch (err) {
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getAdminElections = async (req, res) => {
+  try {
+    const elections = await prisma.election.findMany({
+      include: { candidates: true }
+    });
+    return res.json({ success: true, data: elections });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -20,7 +37,6 @@ export const getElectionById = async (req, res) => {
     });
     if (!election) return res.status(404).json({ success: false, message: "Not found" });
 
-    // Get live tally from blockchain
     const candidates = await readContract.getCandidates(election.blockchainId);
     const tally = candidates.map(c => ({
       id: Number(c.id),

@@ -75,7 +75,7 @@ export default function AdminElectionsPage() {
 
   const fetchElections = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/elections", {
+      const res = await fetch("http://localhost:5000/api/elections/all", {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
       const data = await res.json();
