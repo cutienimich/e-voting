@@ -4,6 +4,7 @@ import crypto from "crypto";
 import fetch from "node-fetch";
 import prisma from "../services/prisma.js";
 import { sanitizeString } from "../utils/sanitize.js";
+import { sendEmailVerification, verifyEmailToken } from "../services/emailService.js";
 
 // ── Helpers ────────────────────────────────────────
 
@@ -41,15 +42,22 @@ export const registerStudent = async (req, res) => {
     const studentId = sanitizeString(req.body.studentId);
     const email = sanitizeString(req.body.email);
     const password = req.body.password;
+    const otp = req.body.otp;
 
-    if (!studentId || !email || !password) {
+    if (!studentId || !email || !password || !otp) {
       return res.status(400).json({ success: false, message: "All fields required" });
+    }
+
+    // Verify OTP
+    const otpResult = verifyEmailToken(email, otp);
+    if (!otpResult.valid) {
+      return res.status(400).json({ success: false, message: otpResult.reason });
     }
 
     // Check registrar list
     const enrolled = await prisma.enrolledStudent.findUnique({ where: { studentId } });
     if (!enrolled) {
-      return res.status(404).json({ success: false, message: "Student ID not found. Contact your registrar." });
+      return res.status(404).json({ success: false, message: "Student ID not found." });
     }
 
     // Check already registered
@@ -62,12 +70,19 @@ export const registerStudent = async (req, res) => {
 
     const hashed = await bcrypt.hash(password, 12);
     const student = await prisma.student.create({
-      data: { studentId, name: enrolled.name, email, password: hashed, isEnrolled: true }
+      data: {
+        studentId,
+        name: enrolled.name,
+        email,
+        password: hashed,
+        isEnrolled: true,
+        emailVerified: true
+      }
     });
 
     return res.status(201).json({
       success: true,
-      message: "Student registered successfully",
+      message: "Account created successfully",
       data: { id: student.id, studentId: student.studentId, name: student.name }
     });
   } catch (err) {
@@ -75,6 +90,7 @@ export const registerStudent = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
 export const loginStudent = async (req, res) => {
   try {
     const studentId = sanitizeString(req.body.studentId);
@@ -385,6 +401,120 @@ export const enrollStudentFace = async (req, res) => {
     }
 
     return res.json({ success: true, message: "Face enrolled successfully" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const validateStudent = async (req, res) => {
+  try {
+    const { studentId } = req.body;
+    if (!studentId) return res.status(400).json({ success: false, message: "Student ID required" });
+
+    const enrolled = await prisma.enrolledStudent.findUnique({
+      where: { studentId: studentId.trim() }
+    });
+
+    if (!enrolled) {
+      return res.status(404).json({
+        success: false,
+        message: "Student ID not found. Contact your registrar."
+      });
+    }
+
+    const existing = await prisma.student.findUnique({
+      where: { studentId: studentId.trim() }
+    });
+
+    if (existing) {
+      return res.json({
+        success: true,
+        alreadyRegistered: true,
+        message: "Already registered"
+      });
+    }
+
+    return res.json({
+      success: true,
+      alreadyRegistered: false,
+      student: {
+        name: enrolled.name,
+        course: enrolled.course,
+        year: enrolled.year,
+        studentId: enrolled.studentId
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const sendOtp = async (req, res) => {
+  try {
+    const { studentId, email } = req.body;
+    if (!studentId || !email) {
+      return res.status(400).json({ success: false, message: "Student ID and email required" });
+    }
+
+    // Check enrolled
+    const enrolled = await prisma.enrolledStudent.findUnique({
+      where: { studentId: studentId.trim() }
+    });
+    if (!enrolled) {
+      return res.status(404).json({ success: false, message: "Student ID not found" });
+    }
+
+    // Check email not taken
+    const emailTaken = await prisma.student.findUnique({ where: { email: email.trim() } });
+    if (emailTaken) {
+      return res.status(409).json({ success: false, message: "Email already in use" });
+    }
+
+    await sendEmailVerification(email.trim(), enrolled.name);
+
+    return res.json({ success: true, message: "OTP sent to email" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const verifyPasswordForVote = async (req, res) => {
+  try {
+    const studentId = req.user.studentId;
+    const password = req.body.password;
+
+    if (!password) return res.status(400).json({ success: false, message: "Password required" });
+
+    const student = await prisma.student.findUnique({ where: { studentId } });
+    if (!student) return res.status(404).json({ success: false, message: "Student not found" });
+
+    const match = await bcrypt.compare(password, student.password);
+    if (!match) return res.status(401).json({ success: false, message: "Incorrect password" });
+
+    return res.json({ success: true, message: "Password verified" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const resendVerificationEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: "Email required" });
+
+    const student = await prisma.student.findUnique({ where: { email } });
+    if (!student) return res.status(404).json({ success: false, message: "Email not found" });
+
+    if (student.emailVerified) {
+      return res.status(400).json({ success: false, message: "Email already verified" });
+    }
+
+    await sendEmailVerification(email, student.name);
+    return res.json({ success: true, message: "Verification code resent" });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, message: "Server error" });
