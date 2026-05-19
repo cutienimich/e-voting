@@ -1,63 +1,54 @@
 // services/emailService.js
-// Password reset OTP via Resend
-// Sign up: https://resend.com  |  Free tier: 3,000 emails/month
-// .env: RESEND_API_KEY=re_CSBj1Bsk_143kF7JQpX77fvby7PWzEDyq  RESEND_FROM=iboto <noreply@yourdomain.com>
+import nodemailer from 'nodemailer';
+import crypto from 'crypto';
 
-const { Resend } = require('resend');
-const crypto = require('crypto');
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false, // fix self-signed cert error
+  },
+});
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// In-memory OTP store
+const otpStore = new Map();
 
-// In-memory OTP store — replace with Redis or DB table in production
-const otpStore = new Map(); // { email: { otp, expiresAt } }
+// ─── SEND EMAIL VERIFICATION OTP ──────────────────────────────────────────
 
-// ─── SEND OTP ─────────────────────────────────────────────────────────────
-
-/**
- * Generate a 6-digit OTP, store it, and email it to the student.
- * @param {string} toEmail - Student's registered email
- * @param {string} studentName - For personalization
- */
-async function sendPasswordResetOTP(toEmail, studentName) {
+async function sendEmailVerification(toEmail, studentName) {
   const otp = crypto.randomInt(100000, 999999).toString();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+  const expiresAt = Date.now() + 10 * 60 * 1000;
 
   otpStore.set(toEmail, { otp, expiresAt });
 
-  const { error } = await resend.emails.send({
-    from: process.env.RESEND_FROM || 'iboto <noreply@yourdomain.com>',
+  await transporter.sendMail({
+    from: `"iboto" <${process.env.EMAIL_USER}>`,
     to: toEmail,
-    subject: 'iboto — Password Reset OTP',
+    subject: 'iboto — Email Verification OTP',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 12px;">
-        <h2 style="color: #166534;">iboto Password Reset</h2>
+        <h2 style="color: #166534;">iboto Email Verification</h2>
         <p>Hi <strong>${studentName}</strong>,</p>
-        <p>Your one-time password (OTP) for resetting your iboto account password is:</p>
+        <p>Your OTP to verify your email is:</p>
         <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #166534; text-align: center; margin: 24px 0;">
           ${otp}
         </div>
-        <p>This OTP is valid for <strong>10 minutes</strong>. Do not share it with anyone.</p>
-        <p style="color: #6b7280; font-size: 12px;">If you did not request a password reset, please ignore this email.</p>
+        <p>Valid for <strong>10 minutes</strong>. Do not share it.</p>
         <hr style="border-color: #e5e7eb;" />
         <p style="color: #6b7280; font-size: 12px;">iboto — Colegio de Montalban e-Voting System</p>
       </div>
     `,
   });
 
-  if (error) throw new Error(`Resend error: ${error.message}`);
-
   return { success: true, message: 'OTP sent to email' };
 }
 
-// ─── VERIFY OTP ───────────────────────────────────────────────────────────
+// ─── VERIFY EMAIL TOKEN (OTP) ─────────────────────────────────────────────
 
-/**
- * Verify the OTP submitted by the student.
- * @param {string} email
- * @param {string} submittedOtp
- * @returns {{ valid: boolean, reason?: string }}
- */
-function verifyOTP(email, submittedOtp) {
+function verifyEmailToken(email, submittedOtp) {
   const record = otpStore.get(email);
 
   if (!record) return { valid: false, reason: 'No OTP requested for this email' };
@@ -69,8 +60,44 @@ function verifyOTP(email, submittedOtp) {
     return { valid: false, reason: 'Incorrect OTP' };
   }
 
-  otpStore.delete(email); // one-time use
+  otpStore.delete(email);
   return { valid: true };
 }
 
-module.exports = { sendPasswordResetOTP, verifyOTP };
+// ─── SEND PASSWORD RESET OTP ──────────────────────────────────────────────
+
+async function sendPasswordResetOTP(toEmail, studentName) {
+  const otp = crypto.randomInt(100000, 999999).toString();
+  const expiresAt = Date.now() + 10 * 60 * 1000;
+
+  otpStore.set(toEmail, { otp, expiresAt });
+
+  await transporter.sendMail({
+    from: `"iboto" <${process.env.EMAIL_USER}>`,
+    to: toEmail,
+    subject: 'iboto — Password Reset OTP',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 12px;">
+        <h2 style="color: #166534;">iboto Password Reset</h2>
+        <p>Hi <strong>${studentName}</strong>,</p>
+        <p>Your OTP for resetting your password is:</p>
+        <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #166534; text-align: center; margin: 24px 0;">
+          ${otp}
+        </div>
+        <p>Valid for <strong>10 minutes</strong>. Do not share it.</p>
+        <hr style="border-color: #e5e7eb;" />
+        <p style="color: #6b7280; font-size: 12px;">iboto — Colegio de Montalban e-Voting System</p>
+      </div>
+    `,
+  });
+
+  return { success: true, message: 'OTP sent to email' };
+}
+
+// ─── VERIFY PASSWORD RESET OTP ────────────────────────────────────────────
+
+function verifyOTP(email, submittedOtp) {
+  return verifyEmailToken(email, submittedOtp);
+}
+
+export { sendEmailVerification, verifyEmailToken, sendPasswordResetOTP, verifyOTP };
