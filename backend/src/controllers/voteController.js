@@ -35,17 +35,29 @@ export const castVote = async (req, res) => {
       return res.status(404).json({ success: false, message: "Candidate not found" });
     }
 
-    // MOCK — generate fake tx hash for testing
-    const { ethers } = await import("ethers");
+    // Hash student ID for privacy on blockchain
     const hashedStudentId = ethers.keccak256(ethers.toUtf8Bytes(studentId));
-    const mockTxHash = "0xmock_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+
+    // Also check on blockchain (double protection)
+    const alreadyVotedOnChain = await contract.checkVoted(election.blockchainId, hashedStudentId);
+    if (alreadyVotedOnChain) {
+      return res.status(409).json({ success: false, message: "Already voted on blockchain" });
+    }
+
+    // Cast vote on blockchain
+    const tx = await contract.castVote(
+      election.blockchainId,
+      candidate.blockchainId,
+      hashedStudentId
+    );
+    const receipt = await tx.wait();
 
     await prisma.vote.create({
       data: {
         studentId: req.user.id,
         electionId,
         candidateId: candidate.id,
-        txHash: mockTxHash,
+        txHash: receipt.hash,
         hashedStudentId
       }
     });
@@ -53,7 +65,7 @@ export const castVote = async (req, res) => {
     return res.json({
       success: true,
       message: "Vote cast successfully",
-      data: { txHash: mockTxHash }
+      data: { txHash: receipt.hash }
     });
   } catch (err) {
     console.error(err);

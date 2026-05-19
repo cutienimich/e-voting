@@ -28,13 +28,25 @@ export const enrollStudent = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
 export const createElection = async (req, res) => {
   try {
     const name = sanitizeString(req.body.name);
 
-    // MOCK — skip blockchain for testing
-    const blockchainId = Math.floor(Math.random() * 10000);
-    const mockTxHash = "0xmock_" + Date.now();
+    // Send to blockchain
+    const tx = await contract.createElection(name);
+    const receipt = await tx.wait();
+
+    // Get electionId from event
+    const event = receipt.logs
+      .map(log => { try { return contract.interface.parseLog(log); } catch { return null; } })
+      .find(e => e && e.name === "ElectionCreated");
+
+    if (!event) {
+      return res.status(500).json({ success: false, message: "Election created but event not found" });
+    }
+
+    const blockchainId = Number(event.args.electionId);
 
     const election = await prisma.election.create({
       data: { blockchainId, name }
@@ -50,11 +62,22 @@ export const createElection = async (req, res) => {
 export const addCandidate = async (req, res) => {
   try {
     const { electionId, name, position } = req.body;
-    const election = await prisma.election.findUnique({ where: { id: sanitizeString(electionId) } });
+    const election = await prisma.election.findUnique({
+      where: { id: sanitizeString(electionId) },
+      include: { candidates: true }
+    });
     if (!election) return res.status(404).json({ success: false, message: "Election not found" });
 
-    // MOCK — skip blockchain for testing
-    const blockchainId = election.candidates ? election.candidates.length : 0;
+    // Send to blockchain
+    const tx = await contract.addCandidate(election.blockchainId, sanitizeString(name), sanitizeString(position));
+    const receipt = await tx.wait();
+
+    // Get candidateId from event
+    const event = receipt.logs
+      .map(log => { try { return contract.interface.parseLog(log); } catch { return null; } })
+      .find(e => e && e.name === "CandidateAdded");
+
+    const blockchainId = event ? Number(event.args.candidateId) : election.candidates.length + 1;
 
     const candidate = await prisma.candidate.create({
       data: {
@@ -77,7 +100,10 @@ export const openElection = async (req, res) => {
     const election = await prisma.election.findUnique({ where: { id: req.params.id } });
     if (!election) return res.status(404).json({ success: false, message: "Not found" });
 
-    // MOCK — skip blockchain for testing
+    // Send to blockchain
+    const tx = await contract.openElection(election.blockchainId);
+    await tx.wait();
+
     const updated = await prisma.election.update({
       where: { id: election.id },
       data: { isOpen: true, startTime: new Date() }
@@ -95,7 +121,10 @@ export const closeElection = async (req, res) => {
     const election = await prisma.election.findUnique({ where: { id: req.params.id } });
     if (!election) return res.status(404).json({ success: false, message: "Not found" });
 
-    // MOCK — skip blockchain for testing
+    // Send to blockchain
+    const tx = await contract.closeElection(election.blockchainId);
+    await tx.wait();
+
     const updated = await prisma.election.update({
       where: { id: election.id },
       data: { isOpen: false, endTime: new Date() }
@@ -175,7 +204,7 @@ export const bulkAddEnrolledStudents = async (req, res) => {
     console.error(err);
     return res.status(500).json({ success: false, message: "Server error" });
   }
-}; 
+};
 
 export const enrollFace = async (req, res) => {
   try {
@@ -185,7 +214,6 @@ export const enrollFace = async (req, res) => {
       return res.status(400).json({ success: false, message: "studentId and image required" });
     }
 
-    // Check student exist
     const student = await prisma.student.findUnique({
       where: { studentId: sanitizeString(studentId) }
     });
@@ -193,7 +221,6 @@ export const enrollFace = async (req, res) => {
       return res.status(404).json({ success: false, message: "Student not found" });
     }
 
-    // Send to face service
     const response = await fetch(`${process.env.FACE_SERVICE_URL}/enroll`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
