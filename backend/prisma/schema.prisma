@@ -15,6 +15,13 @@ model Student {
   phone         String?        @unique
   password      String
   faceEncoding  String?
+  faceEnrolled  Boolean        @default(false)
+  faceId        String?
+  birthday      DateTime?
+  course        String?
+  yearLevel     String?
+  section       String?
+  address       String?
   isEnrolled    Boolean        @default(true)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -86,10 +93,10 @@ model RefreshToken {
 }
 
 model DeviceToken {
-  id        String   @id @default(cuid())
-  token     String   @unique
-  studentId String
+  id         String   @id @default(cuid())
+  token      String   @unique
+  studentId  String
   deviceInfo String?
-  createdAt DateTime @default(now())
-  student   Student  @relation(fields: [studentId], references: [id])
+  createdAt  DateTime @default(now())
+  student    Student  @relation(fields: [studentId], references: [id])
 }

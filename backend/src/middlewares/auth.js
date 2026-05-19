@@ -7,7 +7,7 @@ export const authenticateStudent = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (decoded.role !== "student") return res.status(403).json({ success: false, message: "Forbidden" });
-    req.user = decoded;
+    req.user = decoded; // NO CHANGE HERE
     next();
   } catch {
     return res.status(401).json({ success: false, message: "Invalid token" });
@@ -21,7 +21,7 @@ export const authenticateAdmin = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (decoded.role !== "admin") return res.status(403).json({ success: false, message: "Forbidden" });
-    req.user = decoded;
+    req.user = decoded; // NO CHANGE HERE
     next();
   } catch {
     return res.status(401).json({ success: false, message: "Invalid token" });

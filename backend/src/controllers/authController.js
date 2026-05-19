@@ -516,3 +516,21 @@ export const resendVerificationEmail = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+export const getMe = async (req, res) => {
+  try {
+    const student = await prisma.student.findUnique({
+      where: { id: req.user.id },
+      select: {
+        studentId: true, name: true, email: true,
+        birthday: true, course: true, yearLevel: true,
+        section: true, address: true, faceEnrolled: true,
+        createdAt: true,
+      }
+    });
+    if (!student) return res.status(404).json({ success: false, message: "Student not found" });
+    return res.json({ success: true, data: student });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
