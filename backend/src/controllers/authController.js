@@ -508,7 +508,6 @@ export const resendVerificationEmail = async (req, res) => {
     const student = await prisma.student.findUnique({ where: { email } });
     if (!student) return res.status(404).json({ success: false, message: "Email not found" });
 
-   
     await sendEmailVerification(email, student.name);
     return res.json({ success: true, message: "Verification code resent" });
   } catch (err) {
@@ -531,6 +530,78 @@ export const getMe = async (req, res) => {
     if (!student) return res.status(404).json({ success: false, message: "Student not found" });
     return res.json({ success: true, data: student });
   } catch (err) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ── Email Change ───────────────────────────────────
+
+export const requestEmailChange = async (req, res) => {
+  try {
+    const { newEmail } = req.body;
+    const studentId = req.user.id;
+
+    if (!newEmail) {
+      return res.status(400).json({ success: false, message: "New email required" });
+    }
+
+    // Check email not already taken
+    const emailTaken = await prisma.student.findUnique({ where: { email: newEmail.trim() } });
+    if (emailTaken) {
+      return res.status(409).json({ success: false, message: "Email already in use" });
+    }
+
+    const student = await prisma.student.findUnique({ where: { id: studentId } });
+    if (!student) {
+      return res.status(404).json({ success: false, message: "Student not found" });
+    }
+
+    await sendEmailVerification(newEmail.trim(), student.name);
+
+    return res.json({ success: true, message: "OTP sent to new email" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const verifyEmailChange = async (req, res) => {
+  try {
+    const { otp, newEmail } = req.body;
+    const studentId = req.user.id;
+
+    if (!otp || !newEmail) {
+      return res.status(400).json({ success: false, message: "OTP and new email required" });
+    }
+
+    const result = verifyEmailToken(newEmail.trim(), otp.toString());
+    if (!result.valid) {
+      return res.status(400).json({ success: false, message: result.reason });
+    }
+
+    await prisma.student.update({
+      where: { id: studentId },
+      data: { email: newEmail.trim() }
+    });
+
+    return res.json({ success: true, message: "Email updated successfully" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const { birthday, yearLevel, section, course, address } = req.body;
+    const updated = await prisma.student.update({
+      where: { id: req.user.id },
+      data: { birthday: birthday ? new Date(birthday) : null, 
+              yearLevel, section, course, address },
+    });
+    return res.json({ success: true, message: "Profile updated" });
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };

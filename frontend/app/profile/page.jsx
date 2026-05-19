@@ -2,6 +2,62 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+// ── Token refresh utility ─────────────────────────────────────
+// Tries to get a new access token using the stored refresh token.
+// Returns the new access token string, or null if refresh fails.
+const refreshAccessToken = async () => {
+  const refreshToken = localStorage.getItem("iboto-refresh-token");
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch(`${API}/api/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+    const data = await res.json();
+    if (data.success && data.accessToken) {
+  localStorage.setItem("iboto-access-token", data.accessToken);
+  return data.accessToken;
+} else if (data.success && data.data?.accessToken) {
+  localStorage.setItem("iboto-access-token", data.data.accessToken);
+  return data.data.accessToken;
+}
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+// ── Authenticated fetch with auto-retry on 401 ────────────────
+// Wraps fetch: if the first attempt returns 401, refreshes the
+// token once and retries. If refresh also fails, clears storage
+// and redirects to login via the returned { __redirect } flag.
+const authFetch = async (url, options = {}) => {
+  const makeHeaders = (token) => ({
+    ...options.headers,
+    Authorization: `Bearer ${token}`,
+  });
+
+  let token = localStorage.getItem("iboto-access-token");
+  let res = await fetch(url, { ...options, headers: makeHeaders(token) });
+
+  if (res.status === 401) {
+    const newToken = await refreshAccessToken();
+    if (!newToken) {
+      // Refresh failed — session is dead, signal caller to redirect
+      ["iboto-access-token", "iboto-refresh-token", "iboto-student", "iboto-device-token"]
+        .forEach((k) => localStorage.removeItem(k));
+      return { __redirect: "/login" };
+    }
+    // Retry once with fresh token
+    res = await fetch(url, { ...options, headers: makeHeaders(newToken) });
+  }
+
+  return res;
+};
+
 export default function ProfilePage() {
   const [dark, setDark] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -35,14 +91,20 @@ export default function ProfilePage() {
 
   // Face enrollment
   const [showFaceEnroll, setShowFaceEnroll] = useState(false);
-  const [faceStep, setFaceStep] = useState("idle"); // idle | camera | captured | uploading | success | error
+  const [faceStep, setFaceStep] = useState("idle");
   const [faceError, setFaceError] = useState("");
-  const [capturedImage, setCapturedImage] = useState(null); // base64
+  const [capturedImage, setCapturedImage] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
 
   const router = useRouter();
+
+  // ── Helper: handle redirect flag from authFetch ───────────────
+  const checkRedirect = (res) => {
+    if (res?.__redirect) { router.push(res.__redirect); return true; }
+    return false;
+  };
 
   useEffect(() => {
     if (otpCountdown <= 0) return;
@@ -61,7 +123,6 @@ export default function ProfilePage() {
     fetchProfile();
   }, []);
 
-  // Stop camera when face modal closes
   useEffect(() => {
     if (!showFaceEnroll) stopCamera();
   }, [showFaceEnroll]);
@@ -72,40 +133,36 @@ export default function ProfilePage() {
     localStorage.setItem("iboto-theme", next ? "dark" : "light");
   };
 
-const fetchProfile = async () => {
-  try {
-    const token = localStorage.getItem("iboto-access-token");
-    
-    const profileRes = await fetch("http://localhost:5000/api/auth/me", { 
-      headers: { Authorization: `Bearer ${token}` } 
-    });
+  const fetchProfile = async () => {
+    try {
+      const res = await authFetch(`${API}/api/auth/me`);
+      if (checkRedirect(res)) return;
 
-    if (!profileRes.ok) {
-      throw new Error(`Server say: ${profileRes.status}`);
-    }
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
-    const profileData = await profileRes.json();
-    if (profileData.success) {
-      const d = profileData.data;
-      setProfile(d);
-      const yearSection = d.yearLevel
-        ? `${d.yearLevel}${d.section ? ` - ${d.section}` : ""}`
-        : (d.section || "");
-      setEditForm({
-        email: d.email || "",
-        birthday: d.birthday ? d.birthday.slice(0, 10) : "",
-        yearSection,
-        course: d.course || "",
-        address: d.address || "",
-      });
-      setNewEmail(d.email || "");
+      const profileData = await res.json();
+      if (profileData.success) {
+        const d = profileData.data;
+        setProfile(d);
+        const yearSection = d.yearLevel
+          ? `${d.yearLevel}${d.section ? ` - ${d.section}` : ""}`
+          : (d.section || "");
+        setEditForm({
+          email: d.email || "",
+          birthday: d.birthday ? d.birthday.slice(0, 10) : "",
+          yearSection,
+          course: d.course || "",
+          address: d.address || "",
+        });
+        setNewEmail(d.email || "");
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error(err);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
   const parseYearSection = (val) => {
     const parts = val.split(/[-–]/).map((s) => s.trim());
     return { yearLevel: parts[0] || "", section: parts[1] || "" };
@@ -125,7 +182,7 @@ const fetchProfile = async () => {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
       }
-    } catch (err) {
+    } catch {
       setFaceError("Cannot access camera. Please allow camera permission and try again.");
       setFaceStep("error");
     }
@@ -145,7 +202,6 @@ const fetchProfile = async () => {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
-    // Mirror flip to match preview
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0);
@@ -165,14 +221,13 @@ const fetchProfile = async () => {
     setFaceStep("uploading");
     try {
       const studentId = profile?.studentId || student?.studentId;
-      const res = await fetch(`http://localhost:5000/api/face/enroll/${studentId}`, {
+      const res = await authFetch(`${API}/api/face/enroll/${studentId}`, {
         method: "POST",
-        headers: { 
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${localStorage.getItem("iboto-access-token")}` // ADD THIS!
-       },
-         body: JSON.stringify({ imageBase64: capturedImage }),  
-        });
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: capturedImage }),
+      });
+      if (checkRedirect(res)) return;
+
       const data = await res.json();
       if (!data.success) {
         setFaceError(data.message || "Enrollment failed. Try again.");
@@ -180,9 +235,7 @@ const fetchProfile = async () => {
         return;
       }
       setFaceStep("success");
-      // Update profile badge
       setProfile((prev) => ({ ...prev, faceEnrolled: true }));
-      // Auto-close after 2.5s
       setTimeout(() => {
         setShowFaceEnroll(false);
         setFaceStep("idle");
@@ -217,12 +270,13 @@ const fetchProfile = async () => {
     if (newEmail === profile?.email) { setOtpError("This is already your current email."); return; }
     setOtpLoading(true);
     try {
-      const token = localStorage.getItem("iboto-access-token");
-      const res = await fetch("http://localhost:5000/api/auth/request-email-change", {
+      const res = await authFetch(`${API}/api/auth/request-email-change`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newEmail }),
       });
+      if (checkRedirect(res)) return;
+
       const data = await res.json();
       if (!data.success) { setOtpError(data.message || "Failed to send OTP."); return; }
       setEmailStep("otp-sent");
@@ -236,12 +290,13 @@ const fetchProfile = async () => {
     if (otpValue.length < 4) { setOtpError("Enter the OTP sent to your email."); return; }
     setOtpLoading(true);
     try {
-      const token = localStorage.getItem("iboto-access-token");
-      const res = await fetch("http://localhost:5000/api/auth/verify-email-change", {
+      const res = await authFetch(`${API}/api/auth/verify-email-change`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ otp: otpValue, newEmail }),
       });
+      if (checkRedirect(res)) return;
+
       const data = await res.json();
       if (!data.success) { setOtpError(data.message || "Invalid or expired OTP."); return; }
       setEmailStep("verified");
@@ -271,10 +326,9 @@ const fetchProfile = async () => {
     setEditLoading(true);
     const { yearLevel, section } = parseYearSection(editForm.yearSection);
     try {
-      const token = localStorage.getItem("iboto-access-token");
-      const res = await fetch("http://localhost:5000/api/auth/update-profile", {
+      const res = await authFetch(`${API}/api/auth/update-profile`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: editForm.email.trim() || null,
           birthday: editForm.birthday || null,
@@ -284,6 +338,8 @@ const fetchProfile = async () => {
           address: editForm.address.trim() || null,
         }),
       });
+      if (checkRedirect(res)) return;
+
       const data = await res.json();
       if (!data.success) { setEditError(data.message || "Failed to update profile."); return; }
       setProfile((prev) => ({ ...prev, email: editForm.email, birthday: editForm.birthday, yearLevel, section, course: editForm.course, address: editForm.address }));
@@ -317,12 +373,13 @@ const fetchProfile = async () => {
     if (passwordForm.next !== passwordForm.confirm) { setPasswordError("Passwords do not match"); return; }
     setPasswordLoading(true);
     try {
-      const token = localStorage.getItem("iboto-access-token");
-      const res = await fetch("http://localhost:5000/api/auth/change-password", {
+      const res = await authFetch(`${API}/api/auth/change-password`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword: passwordForm.current, newPassword: passwordForm.next }),
       });
+      if (checkRedirect(res)) return;
+
       const data = await res.json();
       if (!data.success) { setPasswordError(data.message); return; }
       setPasswordSuccess(true);
@@ -335,7 +392,7 @@ const fetchProfile = async () => {
   const handleLogout = async () => {
     const refreshToken = localStorage.getItem("iboto-refresh-token");
     if (refreshToken) {
-      await fetch("http://localhost:5000/api/auth/logout", {
+      await fetch(`${API}/api/auth/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken }),
@@ -411,7 +468,6 @@ const fetchProfile = async () => {
           .action-row:hover { background: rgba(45,140,78,0.05); }
           .action-row-danger:hover { background: rgba(239,68,68,0.05); }
           .required-star { color: #EF4444; margin-left: 2px; }
-          /* Face Modal */
           .face-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 999; display: flex; align-items: flex-end; justify-content: center; animation: fadeIn 0.2s ease; }
           .face-sheet { background: ${t.bg}; border-radius: 24px 24px 0 0; width: 100%; max-width: 480px; padding: 24px 20px 40px; display: flex; flex-direction: column; gap: 16px; animation: slideUp 0.3s ease; }
           @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -719,7 +775,6 @@ const fetchProfile = async () => {
       {showFaceEnroll && (
         <div className="face-overlay" onClick={(e) => { if (e.target === e.currentTarget) handleCloseFaceEnroll(); }}>
           <div className="face-sheet">
-            {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: 20, fontWeight: 800, color: t.text }}>Face Enrollment</h2>
@@ -737,7 +792,6 @@ const fetchProfile = async () => {
               </button>
             </div>
 
-            {/* IDLE STATE */}
             {faceStep === "idle" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -757,12 +811,10 @@ const fetchProfile = async () => {
               </div>
             )}
 
-            {/* CAMERA STATE */}
             {faceStep === "camera" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div className="face-oval-wrap">
                   <video ref={videoRef} className="face-video" autoPlay playsInline muted />
-                  {/* Oval guide overlay */}
                   <div className="face-oval-overlay">
                     <svg width="180" height="220" viewBox="0 0 180 220">
                       <ellipse cx="90" cy="110" rx="75" ry="95" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeDasharray="8 4"/>
@@ -775,7 +827,6 @@ const fetchProfile = async () => {
               </div>
             )}
 
-            {/* CAPTURED STATE */}
             {faceStep === "captured" && capturedImage && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <img src={`data:image/jpeg;base64,${capturedImage}`} className="face-preview" alt="Captured face" />
@@ -786,7 +837,6 @@ const fetchProfile = async () => {
               </div>
             )}
 
-            {/* UPLOADING STATE */}
             {faceStep === "uploading" && (
               <div style={{ textAlign: "center", padding: "24px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
                 <div style={{ width: 56, height: 56, borderRadius: "50%", border: `3px solid ${t.border}`, borderTopColor: "#2D8C4E", animation: "spin 0.8s linear infinite" }} />
@@ -795,7 +845,6 @@ const fetchProfile = async () => {
               </div>
             )}
 
-            {/* SUCCESS STATE */}
             {faceStep === "success" && (
               <div style={{ textAlign: "center", padding: "20px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(45,140,78,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -808,7 +857,6 @@ const fetchProfile = async () => {
               </div>
             )}
 
-            {/* ERROR STATE */}
             {faceStep === "error" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div className="error-box">{faceError}</div>
