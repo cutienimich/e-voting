@@ -58,6 +58,10 @@ model Candidate {
   electionId   String
   name         String
   position     String
+  partylist    String?
+  motto        String?
+  platforms    String[] 
+  photoUrl     String?
   createdAt    DateTime @default(now())
   election     Election @relation(fields: [electionId], references: [id])
   votes        Vote[]

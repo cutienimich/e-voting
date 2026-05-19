@@ -58,21 +58,29 @@ export const createElection = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
 export const addCandidate = async (req, res) => {
   try {
-    const { electionId, name, position } = req.body;
+    const { electionId, name, position, partylist, motto, platforms } = req.body;
+    
+    // platforms is sent as JSON string
+    const parsedPlatforms = platforms ? JSON.parse(platforms) : [];
+    
+    // handle photo — store as base64 or save to disk (using memoryStorage here)
+    let photoUrl = null;
+    if (req.file) {
+      const base64 = req.file.buffer.toString("base64");
+      photoUrl = `data:${req.file.mimetype};base64,${base64}`;
+    }
+
     const election = await prisma.election.findUnique({
       where: { id: sanitizeString(electionId) },
       include: { candidates: true }
     });
     if (!election) return res.status(404).json({ success: false, message: "Election not found" });
 
-    // Send to blockchain
     const tx = await contract.addCandidate(election.blockchainId, sanitizeString(name), sanitizeString(position));
     const receipt = await tx.wait();
 
-    // Get candidateId from event
     const event = receipt.logs
       .map(log => { try { return contract.interface.parseLog(log); } catch { return null; } })
       .find(e => e && e.name === "CandidateAdded");
@@ -84,7 +92,11 @@ export const addCandidate = async (req, res) => {
         blockchainId,
         electionId,
         name: sanitizeString(name),
-        position: sanitizeString(position)
+        position: sanitizeString(position),
+        partylist: partylist ? sanitizeString(partylist) : null,
+        motto: motto ? sanitizeString(motto) : null,
+        platforms: parsedPlatforms,
+        photoUrl,
       }
     });
 

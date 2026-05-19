@@ -202,26 +202,34 @@ export default function ElectionsPage() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {openElections.map(election => (
-                <div key={election.id} className="election-card" onClick={() => router.push(`/ballot/${election.id}`)}>
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
-                    <div className="badge-open">
-                      <span className="dot-live" />
-                      Live
-                    </div>
-                    <svg width="18" height="18" fill="none" stroke={t.subtext} strokeWidth="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
-                  </div>
-                  <h3 style={{ fontSize: 17, fontWeight: 700, color: t.text, marginBottom: 8, lineHeight: 1.3 }}>{election.name}</h3>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontSize: 13, color: t.subtext, display: "flex", alignItems: "center", gap: 4 }}>
-                      <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-                      {election.candidates?.length || 0} candidates
-                    </span>
-                    <span style={{ fontSize: 13, color: t.subtext, display: "flex", alignItems: "center", gap: 4 }}>
-                      <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                      {new Date(election.startTime).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
-                    </span>
+                <div key={election.id} className="election-card" style={{ cursor: "default" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div className="badge-open">
+                    <span className="dot-live" />
+                    Live
                   </div>
                 </div>
+                <h3 style={{ fontSize: 17, fontWeight: 700, color: t.text, marginBottom: 8, lineHeight: 1.3 }}>{election.name}</h3>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  <span style={{ fontSize: 13, color: t.subtext, display: "flex", alignItems: "center", gap: 4 }}>
+                    {/* ...same candidate count and date spans... */}
+                  </span>
+                </div>
+
+                {/* TWO BUTTONS */}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    onClick={() => router.push(`/elections/${election.id}/candidates`)}
+                    style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid rgba(45,140,78,0.3)", background: "rgba(45,140,78,0.06)", color: "#2D8C4E", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
+                    👥 View Candidates
+                  </button>
+                  <button
+                    onClick={() => router.push(`/ballot/${election.id}`)}
+                    style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #1B4D2E, #2D8C4E)", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
+                    🗳 Vote Now
+                  </button>
+                </div>
+              </div>
               ))}
             </div>
           </div>
