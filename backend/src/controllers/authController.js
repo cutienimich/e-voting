@@ -75,8 +75,7 @@ export const registerStudent = async (req, res) => {
         name: enrolled.name,
         email,
         password: hashed,
-        isEnrolled: true,
-        emailVerified: true
+        isEnrolled: true
       }
     });
 
@@ -509,10 +508,7 @@ export const resendVerificationEmail = async (req, res) => {
     const student = await prisma.student.findUnique({ where: { email } });
     if (!student) return res.status(404).json({ success: false, message: "Email not found" });
 
-    if (student.emailVerified) {
-      return res.status(400).json({ success: false, message: "Email already verified" });
-    }
-
+   
     await sendEmailVerification(email, student.name);
     return res.json({ success: true, message: "Verification code resent" });
   } catch (err) {
