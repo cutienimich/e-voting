@@ -23,22 +23,29 @@ export default function CandidatesPage() {
   const [loading, setLoading] = useState(true);
   const [filterPos, setFilterPos] = useState("All");
   const [selected, setSelected] = useState(null); // candidate detail modal
+  const [checking, setChecking] = useState(true);   // ✅ ADD
+  const [alreadyVoted, setAlreadyVoted] = useState(false); // ✅ ADD
 
   const router = useRouter();
   const params = useParams();
   const electionId = params?.id;
 
-  useEffect(() => {
-    setMounted(true);
-    const saved = localStorage.getItem("iboto-theme");
-    if (saved) setDark(saved === "dark");
-    else setDark(window.matchMedia("(prefers-color-scheme: dark)").matches);
+useEffect(() => {
+  setMounted(true);
+  const saved = localStorage.getItem("iboto-theme");
+  if (saved) setDark(saved === "dark");
+  else setDark(window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-    const studentData = localStorage.getItem("iboto-student");
-    if (!studentData) { router.push("/login"); return; }
+  const studentData = localStorage.getItem("iboto-student");
+  if (!studentData) { router.push("/login"); return; }
+}, []);
 
-    fetchElection();
-  }, []);
+// Effect 2 - fetch when electionId ready
+useEffect(() => {
+  if (!electionId) return;
+  fetchElection();
+}, [electionId]);
+
 
   const toggleTheme = () => {
     const next = !dark;
@@ -49,22 +56,14 @@ export default function CandidatesPage() {
   const fetchElection = async () => {
   try {
     const token = localStorage.getItem("iboto-access-token");
+    console.log("TOKEN:", token);
+    console.log("ELECTION ID:", electionId);
     
-    const statusRes = await fetch(`http://localhost:5000/api/vote/status/${electionId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const statusData = await statusRes.json();
-    if (statusData.data?.hasVoted) { 
-      setAlreadyVoted(true); 
-      setChecking(false);
-      setLoading(false); 
-      return; 
-    }
-
     const res = await fetch(`http://localhost:5000/api/elections/${electionId}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     const data = await res.json();
+    console.log("FULL RESPONSE:", data); // SHOW ME THIS
     if (data.success) setElection(data.data);
   } catch (err) { console.error(err); }
   finally { setLoading(false); setChecking(false); }

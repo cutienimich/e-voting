@@ -82,7 +82,7 @@ export const registerStudent = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Account created successfully",
-      data: { id: student.id, studentId: student.studentId, name: student.name }
+      data: { id: student.id, studentId: student.studentId, name: student.name,   faceEnrolled: student.faceEnrolled }
     });
   } catch (err) {
     console.error(err);
@@ -144,7 +144,8 @@ return res.json({
     accessToken,
     refreshToken,
     name: student.name,
-    studentId: student.studentId
+    studentId: student.studentId,
+    faceEnrolled: student.faceEnrolled,
   }
 });
     }
@@ -180,7 +181,8 @@ return res.json({
           accessToken,
           refreshToken,
           name: student.name,
-          studentId: student.studentId
+          studentId: student.studentId,  
+          faceEnrolled: student.faceEnrolled
         }
       });
     }
@@ -208,7 +210,8 @@ return res.json({
           accessToken,
           refreshToken,
           name: student.name,
-          studentId: student.studentId
+          studentId: student.studentId, 
+          faceEnrolled: student.faceEnrolled
         }
       });
     }
@@ -251,7 +254,8 @@ return res.json({
         refreshToken,
         deviceToken: newDeviceToken,
         name: student.name,
-        studentId: student.studentId
+        studentId: student.studentId,   
+        faceEnrolled: student.faceEnrolled
       }
     });
   } catch (err) {
