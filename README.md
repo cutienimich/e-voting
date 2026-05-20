@@ -145,3 +145,10 @@ May 20, 2026
 
 re-implemented blockchain
 create account rebuild
+Compiled 1 Solidity file successfully (evm target: paris).
+Deploying Voting contract...
+✅ Voting deployed to: 0xa678F995358AE56A788B272F9345D8328915a67e
+Network: amoy
+
+Add this to your .env:
+CONTRACT_ADDRESS=0xa678F995358AE56A788B272F9345D8328915a67e

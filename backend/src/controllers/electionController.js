@@ -28,7 +28,6 @@ export const getAdminElections = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
-
 export const getElectionById = async (req, res) => {
   try {
     const election = await prisma.election.findUnique({
@@ -37,13 +36,18 @@ export const getElectionById = async (req, res) => {
     });
     if (!election) return res.status(404).json({ success: false, message: "Not found" });
 
-    const candidates = await readContract.getCandidates(election.blockchainId);
-    const tally = candidates.map(c => ({
-      id: Number(c.id),
-      name: c.name,
-      position: c.position,
-      voteCount: Number(c.voteCount)
-    }));
+    let tally = [];
+    try {
+      const candidates = await readContract.getCandidates(election.blockchainId);
+      tally = candidates.map(c => ({
+        id: Number(c.id),
+        name: c.name,
+        position: c.position,
+        voteCount: Number(c.voteCount)
+      }));
+    } catch (blockchainErr) {
+      console.warn("Blockchain read failed, skipping tally:", blockchainErr.message);
+    }
 
     return res.json({ success: true, data: { ...election, tally } });
   } catch (err) {

@@ -5,68 +5,53 @@ import { sanitizeString } from "../utils/sanitize.js";
 
 export const castVote = async (req, res) => {
   try {
-    const { electionId, candidateId } = req.body;
+    const { electionId, candidateIds } = req.body;
     const studentId = req.user.studentId;
 
-    if (!electionId || candidateId === undefined) {
+    if (!electionId || !Array.isArray(candidateIds) || candidateIds.length === 0) {
       return res.status(400).json({ success: false, message: "Missing fields" });
     }
 
-    const election = await prisma.election.findUnique({
-      where: { id: sanitizeString(electionId) }
-    });
+    const election = await prisma.election.findUnique({ where: { id: sanitizeString(electionId) } });
     if (!election || !election.isOpen) {
       return res.status(400).json({ success: false, message: "Election not open" });
     }
 
-    // Check already voted in DB
-    const existingVote = await prisma.vote.findFirst({
-      where: { studentId: req.user.id, electionId }
-    });
-    if (existingVote) {
-      return res.status(409).json({ success: false, message: "Already voted" });
-    }
+    const existingVote = await prisma.vote.findFirst({ where: { studentId: req.user.id, electionId } });
+    if (existingVote) return res.status(409).json({ success: false, message: "Already voted" });
 
-    // Check candidate exists
-    const candidate = await prisma.candidate.findFirst({
-      where: { id: sanitizeString(String(candidateId)), electionId }
-    });
-    if (!candidate) {
-      return res.status(404).json({ success: false, message: "Candidate not found" });
-    }
-
-    // Hash student ID for privacy on blockchain
     const hashedStudentId = ethers.keccak256(ethers.toUtf8Bytes(studentId));
 
-    // Also check on blockchain (double protection)
     const alreadyVotedOnChain = await contract.checkVoted(election.blockchainId, hashedStudentId);
-    if (alreadyVotedOnChain) {
-      return res.status(409).json({ success: false, message: "Already voted on blockchain" });
-    }
+    if (alreadyVotedOnChain) return res.status(409).json({ success: false, message: "Already voted on blockchain" });
 
-    // Cast vote on blockchain
-    const tx = await contract.castVote(
-      election.blockchainId,
-      candidate.blockchainId,
-      hashedStudentId
+    // Resolve all candidates
+    const resolvedCandidates = await Promise.all(
+      candidateIds.map(id => prisma.candidate.findFirst({
+        where: { id: sanitizeString(String(id)), electionId }
+      }))
     );
+    const valid = resolvedCandidates.filter(Boolean);
+    if (valid.length === 0) return res.status(404).json({ success: false, message: "No valid candidates" });
+
+    const blockchainCandidateIds = valid.map(c => c.blockchainId);
+
+    // One blockchain tx
+    const tx = await contract.castBulkVote(election.blockchainId, blockchainCandidateIds, hashedStudentId);
     const receipt = await tx.wait();
 
-    await prisma.vote.create({
-      data: {
+    // Save all votes to DB
+    await prisma.vote.createMany({
+      data: valid.map(c => ({
         studentId: req.user.id,
         electionId,
-        candidateId: candidate.id,
+        candidateId: c.id,
         txHash: receipt.hash,
         hashedStudentId
-      }
+      }))
     });
 
-    return res.json({
-      success: true,
-      message: "Vote cast successfully",
-      data: { txHash: receipt.hash }
-    });
+    return res.json({ success: true, message: "Votes cast", data: { txHash: receipt.hash } });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, message: "Server error" });

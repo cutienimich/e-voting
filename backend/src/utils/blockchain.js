@@ -13,7 +13,8 @@ const ABI = [
   "function checkVoted(uint256 _electionId, bytes32 _hashedStudentId) external view returns (bool)",
   "function electionCount() external view returns (uint256)",
   "event ElectionCreated(uint256 indexed electionId, string name)",
-  "event VoteCast(uint256 indexed electionId, uint256 indexed candidateId, bytes32 hashedStudentId)"
+  "event VoteCast(uint256 indexed electionId, uint256 indexed candidateId, bytes32 hashedStudentId)",
+  "function castBulkVote(uint256 _electionId, uint256[] calldata _candidateIds, bytes32 _hashedStudentId) external"
 ];
 
 const provider = new ethers.JsonRpcProvider(process.env.AMOY_RPC_URL);

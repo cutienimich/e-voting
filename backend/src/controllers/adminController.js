@@ -61,11 +61,8 @@ export const createElection = async (req, res) => {
 export const addCandidate = async (req, res) => {
   try {
     const { electionId, name, position, partylist, motto, platforms } = req.body;
-    
-    // platforms is sent as JSON string
     const parsedPlatforms = platforms ? JSON.parse(platforms) : [];
-    
-    // handle photo — store as base64 or save to disk (using memoryStorage here)
+
     let photoUrl = null;
     if (req.file) {
       const base64 = req.file.buffer.toString("base64");
@@ -78,7 +75,12 @@ export const addCandidate = async (req, res) => {
     });
     if (!election) return res.status(404).json({ success: false, message: "Election not found" });
 
-    const tx = await contract.addCandidate(election.blockchainId, sanitizeString(name), sanitizeString(position));
+    // Send to blockchain
+    const tx = await contract.addCandidate(
+      election.blockchainId,
+      sanitizeString(name),
+      sanitizeString(position)
+    );
     const receipt = await tx.wait();
 
     const event = receipt.logs
@@ -103,7 +105,7 @@ export const addCandidate = async (req, res) => {
     return res.status(201).json({ success: true, message: "Candidate added", data: candidate });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 

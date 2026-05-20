@@ -347,7 +347,7 @@ export default function LoginPage() {
                   <div style={{ fontSize: 13, fontWeight: 600, color: t.subtext, marginBottom: 8 }}>Student ID</div>
                   <input
                     className="input-field"
-                    placeholder="e.g. XX-XXXXX"
+                    placeholder="e.g. 00-00000"
                     value={form.studentId}
                     onChange={e => update("studentId", e.target.value)}
                     onKeyDown={e => e.key === "Enter" && handleCredentials()}

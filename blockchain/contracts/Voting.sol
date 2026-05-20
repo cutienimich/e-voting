@@ -129,4 +129,23 @@ contract Voting {
     {
         return hasVoted[_electionId][_hashedStudentId];
     }
+
+    function castBulkVote(
+    uint256 _electionId,
+    uint256[] calldata _candidateIds,
+    bytes32 _hashedStudentId
+) external electionExists(_electionId) {
+    require(elections[_electionId].isOpen, "Election not open");
+    require(!hasVoted[_electionId][_hashedStudentId], "Already voted");
+
+    hasVoted[_electionId][_hashedStudentId] = true;
+
+    for (uint256 i = 0; i < _candidateIds.length; i++) {
+        uint256 cid = _candidateIds[i];
+        require(cid > 0 && cid <= candidates[_electionId].length, "Invalid candidate");
+        candidates[_electionId][cid - 1].voteCount++;
+    }
+
+    emit VoteCast(_electionId, _candidateIds[0], _hashedStudentId);
+}
 }
