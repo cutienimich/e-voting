@@ -47,19 +47,28 @@ export default function CandidatesPage() {
   };
 
   const fetchElection = async () => {
-    try {
-      const token = localStorage.getItem("iboto-access-token");
-      const res = await fetch(`http://localhost:5000/api/elections/${electionId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.success) setElection(data.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+  try {
+    const token = localStorage.getItem("iboto-access-token");
+    
+    const statusRes = await fetch(`http://localhost:5000/api/vote/status/${electionId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const statusData = await statusRes.json();
+    if (statusData.data?.hasVoted) { 
+      setAlreadyVoted(true); 
+      setChecking(false);
+      setLoading(false); 
+      return; 
     }
-  };
+
+    const res = await fetch(`http://localhost:5000/api/elections/${electionId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (data.success) setElection(data.data);
+  } catch (err) { console.error(err); }
+  finally { setLoading(false); setChecking(false); }
+};
 
   if (!mounted) return null;
   const t = dark ? theme.dark : theme.light;

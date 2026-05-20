@@ -152,3 +152,7 @@ Network: amoy
 
 Add this to your .env:
 CONTRACT_ADDRESS=0xa678F995358AE56A788B272F9345D8328915a67e
+
+
+pag nawalan OR NAG TIME OUT PALITAN NYO TO SA ENV NG IBANG ACCOUNT!!!
+AMOY_RPC_URL=https://polygon-amoy.g.alchemy.com/v2/b8uvGThOycyz7X9GhC9u0

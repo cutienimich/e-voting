@@ -9,5 +9,6 @@ export const authLimiter = rateLimit({
 export const voteLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
+  keyGenerator: (req) => req.user?.id || req.ip,
   message: { success: false, message: "Too many vote attempts." }
 });

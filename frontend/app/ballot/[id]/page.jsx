@@ -9,10 +9,9 @@ const POSITIONS = [
   "4th Year Senator","3rd Year Senator","2nd Year Senator",
 ];
 
-// ─── THEME ────────────────────────────────────────────────────
 const theme = {
-  light: { bg: "#FAFAF7", card: "#F2F0EA", text: "#111211", subtext: "#6B7070", border: "#E2DFD6", pill: "rgba(0,0,0,0.04)", pillHover: "rgba(45,140,78,0.07)" },
-  dark:  { bg: "#0D1110", card: "#141A17", text: "#E8EDE9", subtext: "#7A8C80", border: "#222E27", pill: "rgba(255,255,255,0.05)", pillHover: "rgba(45,140,78,0.12)" },
+  light: { bg: "#FAFAF7", card: "#F2F0EA", text: "#111211", subtext: "#6B7070", border: "#E2DFD6", pill: "rgba(0,0,0,0.04)" },
+  dark:  { bg: "#0D1110", card: "#141A17", text: "#E8EDE9", subtext: "#7A8C80", border: "#222E27", pill: "rgba(255,255,255,0.05)" },
 };
 
 // ─── AUTH GATE ────────────────────────────────────────────────
@@ -27,7 +26,6 @@ function AuthGate({ student, dark, t, onSuccess }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
-  // Start camera if face enrolled
   useEffect(() => {
     if (!useFace) return;
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
@@ -49,7 +47,6 @@ function AuthGate({ student, dark, t, onSuccess }) {
       canvas.height = videoRef.current.videoHeight;
       canvas.getContext("2d").drawImage(videoRef.current, 0, 0);
       const base64 = canvas.toDataURL("image/jpeg").split(",")[1];
-
       const token = localStorage.getItem("iboto-access-token");
       const res = await fetch("http://localhost:5000/api/face/verify", {
         method: "POST",
@@ -83,9 +80,8 @@ function AuthGate({ student, dark, t, onSuccess }) {
 
   return (
     <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 20px", fontFamily: "'DM Sans', sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Lora:wght@600;700&display=swap');`}</style>
       <div style={{ width: "100%", maxWidth: 400 }}>
-
-        {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 40 }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg, #1B4D2E, #2D8C4E)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ color: "white", fontWeight: 700, fontSize: 20, fontFamily: "Lora, serif", fontStyle: "italic" }}>i</span>
@@ -94,35 +90,23 @@ function AuthGate({ student, dark, t, onSuccess }) {
         </div>
 
         <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 24, padding: "32px 28px" }}>
-
-          {/* Shield icon */}
           <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(45,140,78,0.1)", border: "1px solid rgba(45,140,78,0.2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
-            <svg width="26" height="26" fill="none" stroke={dark ? "#5cc97f" : "#1B6B3A"} strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
+            <svg width="26" height="26" fill="none" stroke={dark ? "#5cc97f" : "#1B6B3A"} strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
-
-          <h2 style={{ fontFamily: "Lora, serif", fontSize: 22, fontWeight: 700, color: t.text, textAlign: "center", marginBottom: 8 }}>
-            Verify your identity
-          </h2>
+          <h2 style={{ fontFamily: "Lora, serif", fontSize: 22, fontWeight: 700, color: t.text, textAlign: "center", marginBottom: 8 }}>Verify your identity</h2>
           <p style={{ fontSize: 13, color: t.subtext, textAlign: "center", lineHeight: 1.6, marginBottom: 28 }}>
             {useFace ? "Look at the camera to verify your face before voting." : "Enter your password to confirm your identity before voting."}
           </p>
 
-          {/* FACE VERIFY */}
           {useFace && (
             <div>
               <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", background: "#000", aspectRatio: "4/3", marginBottom: 16 }}>
                 <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-
-                {/* Overlay scanning ring */}
                 {!faceSuccess && (
                   <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                     <div style={{ width: 140, height: 140, borderRadius: "50%", border: `2px solid ${scanning ? "#5cc97f" : "rgba(255,255,255,0.4)"}`, boxShadow: scanning ? "0 0 0 4px rgba(92,201,127,0.2)" : "none", transition: "all 0.3s" }} />
                   </div>
                 )}
-
-                {/* Success overlay */}
                 {faceSuccess && (
                   <div style={{ position: "absolute", inset: 0, background: "rgba(27,77,46,0.85)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
                     <svg width="48" height="48" fill="none" stroke="#5cc97f" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
@@ -130,29 +114,23 @@ function AuthGate({ student, dark, t, onSuccess }) {
                   </div>
                 )}
               </div>
-
               {!faceSuccess && (
                 <button onClick={captureAndVerify} disabled={!cameraReady || scanning}
-                  style={{ width: "100%", padding: "14px", borderRadius: 14, border: "none", background: scanning ? "rgba(45,140,78,0.5)" : "linear-gradient(135deg, #1B4D2E, #2D8C4E)", color: "white", fontSize: 15, fontWeight: 600, cursor: cameraReady && !scanning ? "pointer" : "not-allowed", fontFamily: "DM Sans, sans-serif", transition: "all 0.2s" }}>
+                  style={{ width: "100%", padding: "14px", borderRadius: 14, border: "none", background: scanning ? "rgba(45,140,78,0.5)" : "linear-gradient(135deg, #1B4D2E, #2D8C4E)", color: "white", fontSize: 15, fontWeight: 600, cursor: cameraReady && !scanning ? "pointer" : "not-allowed", fontFamily: "DM Sans, sans-serif" }}>
                   {!cameraReady ? "Starting camera..." : scanning ? "Scanning..." : "📸 Scan My Face"}
                 </button>
               )}
             </div>
           )}
 
-          {/* PASSWORD VERIFY */}
           {!useFace && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: t.subtext, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Password</div>
-                <input
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
+                <input type="password" placeholder="Enter your password" value={password}
                   onChange={e => setPassword(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && verifyPassword()}
-                  style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${t.border}`, background: t.bg, color: t.text, fontSize: 14, fontFamily: "DM Sans, sans-serif", outline: "none" }}
-                />
+                  style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${t.border}`, background: t.bg, color: t.text, fontSize: 14, fontFamily: "DM Sans, sans-serif", outline: "none" }} />
               </div>
               <button onClick={verifyPassword} disabled={loading}
                 style={{ width: "100%", padding: "14px", borderRadius: 14, border: "none", background: loading ? "rgba(45,140,78,0.5)" : "linear-gradient(135deg, #1B4D2E, #2D8C4E)", color: "white", fontSize: 15, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", fontFamily: "DM Sans, sans-serif" }}>
@@ -176,11 +154,12 @@ function AuthGate({ student, dark, t, onSuccess }) {
 export default function BallotPage() {
   const [dark, setDark] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [student, setStudent] = useState(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [election, setElection] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [votes, setVotes] = useState({}); // { position: candidateId }
+  const [votes, setVotes] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
@@ -191,17 +170,20 @@ export default function BallotPage() {
   const params = useParams();
   const electionId = params?.id;
 
-  useEffect(() => {
+    useEffect(() => {
     setMounted(true);
     const saved = localStorage.getItem("iboto-theme");
     if (saved) setDark(saved === "dark");
     else setDark(window.matchMedia("(prefers-color-scheme: dark)").matches);
-
     const studentData = localStorage.getItem("iboto-student");
     if (!studentData) { router.push("/login"); return; }
     setStudent(JSON.parse(studentData));
-    fetchElection();
-  }, []);
+    }, []);
+
+useEffect(() => {
+  if (!electionId) return;
+  fetchElection();
+}, [electionId]);
 
   const toggleTheme = () => {
     const next = !dark;
@@ -212,13 +194,21 @@ export default function BallotPage() {
   const fetchElection = async () => {
     try {
       const token = localStorage.getItem("iboto-access-token");
+      const statusRes = await fetch(`http://localhost:5000/api/vote/status/${electionId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const statusData = await statusRes.json();
+      if (statusData.data?.hasVoted) {
+        setAlreadyVoted(true);
+        return;
+      }
       const res = await fetch(`http://localhost:5000/api/elections/${electionId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
       if (data.success) setElection(data.data);
     } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    finally { setLoading(false); setChecking(false); }
   };
 
   const handleVote = (position, candidateId) => {
@@ -229,21 +219,17 @@ export default function BallotPage() {
     setSubmitting(true); setSubmitError("");
     try {
       const token = localStorage.getItem("iboto-access-token");
-      const voteEntries = Object.entries(votes);
-
-      for (const [position, candidateId] of voteEntries) {
-        const res = await fetch("http://localhost:5000/api/vote", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ electionId, candidateId }),
-        });
-        const data = await res.json();
-        if (!data.success) {
-          if (data.message?.toLowerCase().includes("already voted")) { setAlreadyVoted(true); setShowConfirm(false); return; }
-          throw new Error(data.message);
-        }
+      const candidateIds = Object.values(votes);
+      const res = await fetch("http://localhost:5000/api/vote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ electionId, candidateIds }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        if (data.message?.toLowerCase().includes("already voted")) { setAlreadyVoted(true); setShowConfirm(false); return; }
+        throw new Error(data.message);
       }
-
       setSubmitted(true);
       setShowConfirm(false);
     } catch (err) {
@@ -251,46 +237,44 @@ export default function BallotPage() {
     } finally { setSubmitting(false); }
   };
 
-  if (!mounted) return null;
+  // ── RENDER ORDER ──────────────────────────────────────────────
+  // 1. Loading spinner (while checking vote status)
+  if (!mounted || checking) return (
+    <div style={{ minHeight: "100vh", background: "#0D1110", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ fontSize: 13, color: "#7A8C80", fontFamily: "DM Sans, sans-serif" }}>Loading...</div>
+    </div>
+  );
+
   const t = dark ? theme.dark : theme.light;
 
-  // Show auth gate first
-  if (!authenticated) {
-    return (
-      <>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Lora:wght@600;700&display=swap');`}</style>
-        <AuthGate student={student} dark={dark} t={t} onSuccess={() => setAuthenticated(true)} />
-      </>
-    );
-  }
-
-  const candidates = election?.candidates || [];
-
-  const grouped = POSITIONS.reduce((acc, pos) => {
-    const group = candidates.filter(c => c.position === pos);
-    if (group.length > 0) acc[pos] = group;
-    return acc;
-  }, {});
-
-  const totalPositions = Object.keys(grouped).length;
-  const votedPositions = Object.keys(votes).length;
-  const progress = totalPositions > 0 ? (votedPositions / totalPositions) * 100 : 0;
-
-  // Already voted screen
+  // 2. Already voted
   if (alreadyVoted) return (
     <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "DM Sans, sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Lora:wght@600;700&display=swap');`}</style>
       <div style={{ textAlign: "center", maxWidth: 320 }}>
         <div style={{ fontSize: 64, marginBottom: 20 }}>🗳️</div>
         <h2 style={{ fontFamily: "Lora, serif", fontSize: 24, fontWeight: 700, color: t.text, marginBottom: 12 }}>Already Voted</h2>
-        <p style={{ fontSize: 14, color: t.subtext, lineHeight: 1.7, marginBottom: 24 }}>You have already cast your vote in this election. Each student may only vote once.</p>
-        <button onClick={() => router.push("/elections")} style={{ padding: "12px 28px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #1B4D2E, #2D8C4E)", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
-          Back to Elections
-        </button>
+        <p style={{ fontSize: 14, color: t.subtext, lineHeight: 1.7, marginBottom: 24 }}>You have already cast your vote in this election.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button onClick={() => router.push(`/elections/${electionId}/results`)}
+            style={{ padding: "12px 28px", borderRadius: 12, border: `1px solid ${t.border}`, background: "none", color: dark ? "#5cc97f" : "#1B6B3A", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
+            📊 View Results
+          </button>
+          <button onClick={() => router.push("/elections")}
+            style={{ padding: "12px 28px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #1B4D2E, #2D8C4E)", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
+            Back to Elections
+          </button>
+        </div>
       </div>
     </div>
   );
 
-  // Success screen
+  // 3. Auth gate
+  if (!authenticated) return (
+    <AuthGate student={student} dark={dark} t={t} onSuccess={() => setAuthenticated(true)} />
+  );
+
+  // 4. Success screen
   if (submitted) return (
     <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "DM Sans, sans-serif" }}>
       <style>{`
@@ -305,12 +289,30 @@ export default function BallotPage() {
         <h2 style={{ fontFamily: "Lora, serif", fontSize: 26, fontWeight: 700, color: t.text, marginBottom: 12 }}>Vote Cast!</h2>
         <p style={{ fontSize: 14, color: t.subtext, lineHeight: 1.7, marginBottom: 8 }}>Your vote has been recorded on the blockchain.</p>
         <p style={{ fontSize: 12, color: t.subtext, marginBottom: 28 }}>Thank you for participating, {student?.name?.split(" ")[0]}.</p>
-        <button onClick={() => router.push("/elections")} style={{ padding: "12px 28px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #1B4D2E, #2D8C4E)", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
-          Back to Elections
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button onClick={() => router.push(`/elections/${electionId}/results`)}
+            style={{ padding: "12px 28px", borderRadius: 12, border: `1px solid ${t.border}`, background: "none", color: dark ? "#5cc97f" : "#1B6B3A", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
+            📊 View Results
+          </button>
+          <button onClick={() => router.push("/elections")}
+            style={{ padding: "12px 28px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #1B4D2E, #2D8C4E)", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
+            Back to Elections
+          </button>
+        </div>
       </div>
     </div>
   );
+
+  // 5. Ballot
+  const candidates = election?.candidates || [];
+  const grouped = POSITIONS.reduce((acc, pos) => {
+    const group = candidates.filter(c => c.position === pos);
+    if (group.length > 0) acc[pos] = group;
+    return acc;
+  }, {});
+  const totalPositions = Object.keys(grouped).length;
+  const votedPositions = Object.keys(votes).length;
+  const progress = totalPositions > 0 ? (votedPositions / totalPositions) * 100 : 0;
 
   return (
     <div style={{ background: dark ? "#080B0A" : "#F7F5F0", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif", display: "flex", justifyContent: "center" }}>
@@ -318,77 +320,25 @@ export default function BallotPage() {
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Lora:wght@600;700&display=swap');
           * { margin: 0; padding: 0; box-sizing: border-box; }
-
-          .candidate-row {
-            display: flex; align-items: center; gap: 12;
-            padding: 12px 14px;
-            border-radius: 14px;
-            border: 1.5px solid ${t.border};
-            background: ${t.card};
-            cursor: pointer;
-            transition: all 0.18s ease;
-            margin-bottom: 8px;
-          }
+          .candidate-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid ${t.border}; background: ${t.card}; cursor: pointer; transition: all 0.18s ease; margin-bottom: 8px; }
           .candidate-row:hover { border-color: rgba(45,140,78,0.4); }
-          .candidate-row.selected {
-            border-color: ${dark ? "#5cc97f" : "#1B6B3A"};
-            background: ${dark ? "rgba(45,140,78,0.08)" : "rgba(27,77,46,0.05)"};
-          }
-
-          .radio-dot {
-            width: 20px; height: 20px; border-radius: 50%;
-            border: 2px solid ${t.border};
-            display: flex; align-items: center; justify-content: center;
-            flex-shrink: 0; transition: all 0.18s;
-          }
-          .candidate-row.selected .radio-dot {
-            border-color: ${dark ? "#5cc97f" : "#1B6B3A"};
-            background: ${dark ? "#5cc97f" : "#1B6B3A"};
-          }
-
+          .candidate-row.selected { border-color: ${dark ? "#5cc97f" : "#1B6B3A"}; background: ${dark ? "rgba(45,140,78,0.08)" : "rgba(27,77,46,0.05)"}; }
+          .radio-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid ${t.border}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.18s; }
+          .candidate-row.selected .radio-dot { border-color: ${dark ? "#5cc97f" : "#1B6B3A"}; background: ${dark ? "#5cc97f" : "#1B6B3A"}; }
           .pos-section { margin-bottom: 28px; }
-          .pos-label {
-            font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
-            text-transform: uppercase; color: ${dark ? "#5cc97f" : "#1B6B3A"};
-            margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
-          }
+          .pos-label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: ${dark ? "#5cc97f" : "#1B6B3A"}; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
           .pos-label::after { content: ''; flex: 1; height: 1px; background: ${t.border}; }
-
-          .progress-bar {
-            height: 4px; border-radius: 2px;
-            background: ${t.border}; overflow: hidden; margin-bottom: 6px;
-          }
-          .progress-fill {
-            height: 100%; border-radius: 2px;
-            background: linear-gradient(90deg, #1B4D2E, #2D8C4E);
-            transition: width 0.4s ease;
-          }
-
-          .submit-btn {
-            width: 100%; padding: 16px; border-radius: 14px; border: none;
-            background: linear-gradient(135deg, #1B4D2E, #2D8C4E);
-            color: white; font-size: 15px; font-weight: 600;
-            cursor: pointer; font-family: 'DM Sans', sans-serif;
-            transition: all 0.2s; box-shadow: 0 4px 20px rgba(27,77,46,0.3);
-          }
-          .submit-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(27,77,46,0.4); }
+          .progress-bar { height: 4px; border-radius: 2px; background: ${t.border}; overflow: hidden; margin-bottom: 6px; }
+          .progress-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #1B4D2E, #2D8C4E); transition: width 0.4s ease; }
+          .submit-btn { width: 100%; padding: 16px; border-radius: 14px; border: none; background: linear-gradient(135deg, #1B4D2E, #2D8C4E); color: white; font-size: 15px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.2s; box-shadow: 0 4px 20px rgba(27,77,46,0.3); }
+          .submit-btn:hover:not(:disabled) { transform: translateY(-1px); }
           .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-          .modal-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-            display: flex; align-items: flex-end; justify-content: center; z-index: 200;
-          }
-          .modal-sheet {
-            background: ${t.card}; border-radius: 24px 24px 0 0;
-            width: 100%; max-width: 430px; padding: 28px 24px 40px;
-            border: 1px solid ${t.border}; border-bottom: none;
-            animation: slideUp 0.3s ease;
-          }
+          .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 200; }
+          .modal-sheet { background: ${t.card}; border-radius: 24px 24px 0 0; width: 100%; max-width: 430px; padding: 28px 24px 40px; border: 1px solid ${t.border}; border-bottom: none; animation: slideUp 0.3s ease; }
           @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
           @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
           .fade-up { animation: fadeUp 0.35s ease forwards; }
-          ::-webkit-scrollbar { width: 4px; }
-          ::-webkit-scrollbar-thumb { background: ${t.border}; border-radius: 10px; }
+          ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${t.border}; border-radius: 10px; }
         `}</style>
 
         {/* NAV */}
@@ -408,16 +358,10 @@ export default function BallotPage() {
         </nav>
 
         <div style={{ padding: "28px 22px 120px" }}>
-
-          {/* Header */}
           <div className="fade-up" style={{ marginBottom: 28 }}>
             <h1 style={{ fontFamily: "Lora, serif", fontSize: 22, fontWeight: 700, color: t.text, marginBottom: 6 }}>{election?.name}</h1>
             <p style={{ fontSize: 13, color: t.subtext, marginBottom: 16 }}>Select one candidate per position.</p>
-
-            {/* Progress */}
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${progress}%` }} />
-            </div>
+            <div className="progress-bar"><div className="progress-fill" style={{ width: `${progress}%` }} /></div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: t.subtext }}>
               <span>{votedPositions} of {totalPositions} positions filled</span>
               <span>{Math.round(progress)}%</span>
@@ -430,30 +374,22 @@ export default function BallotPage() {
             </div>
           )}
 
-          {/* Ballot */}
           {!loading && Object.entries(grouped).map(([pos, cands]) => (
             <div key={pos} className="pos-section">
               <div className="pos-label">{pos}</div>
               {cands.map(c => {
                 const isSelected = votes[pos] === c.id;
                 return (
-                  <div key={c.id} className={`candidate-row ${isSelected ? "selected" : ""}`} onClick={() => handleVote(pos, c.id)}
-                    style={{ display: "flex", alignItems: "center", gap: 12 }}>
-
-                    {/* Radio */}
+                  <div key={c.id} className={`candidate-row ${isSelected ? "selected" : ""}`} onClick={() => handleVote(pos, c.id)}>
                     <div className="radio-dot">
                       {isSelected && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "white" }} />}
                     </div>
-
-                    {/* Avatar */}
                     {c.photoUrl
                       ? <img src={c.photoUrl} alt={c.name} style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", flexShrink: 0, border: `2px solid ${isSelected ? (dark ? "#5cc97f" : "#1B6B3A") : t.border}` }} />
                       : <div style={{ width: 44, height: 44, borderRadius: "50%", background: isSelected ? "linear-gradient(135deg, #1B4D2E, #2D8C4E)" : t.border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 17, fontWeight: 700, color: isSelected ? "white" : t.subtext }}>
                           {c.name?.charAt(0)}
                         </div>
                     }
-
-                    {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 2 }}>{c.name}</div>
                       {c.partylist && <div style={{ fontSize: 12, color: t.subtext }}>🏛 {c.partylist}</div>}
@@ -464,7 +400,6 @@ export default function BallotPage() {
             </div>
           ))}
 
-          {/* Submit */}
           {!loading && (
             <div style={{ marginTop: 8 }}>
               {submitError && (
@@ -484,7 +419,6 @@ export default function BallotPage() {
           )}
         </div>
 
-        {/* CONFIRM MODAL */}
         {showConfirm && (
           <div className="modal-overlay" onClick={() => !submitting && setShowConfirm(false)}>
             <div className="modal-sheet" onClick={e => e.stopPropagation()}>
@@ -493,8 +427,6 @@ export default function BallotPage() {
               <p style={{ fontSize: 13, color: t.subtext, marginBottom: 20, lineHeight: 1.6 }}>
                 You selected <strong style={{ color: t.text }}>{votedPositions}</strong> candidate{votedPositions > 1 ? "s" : ""}. This cannot be undone.
               </p>
-
-              {/* Vote summary */}
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24, maxHeight: 200, overflowY: "auto" }}>
                 {Object.entries(votes).map(([pos, cid]) => {
                   const c = candidates.find(x => x.id === cid);
@@ -510,7 +442,6 @@ export default function BallotPage() {
                   ) : null;
                 })}
               </div>
-
               <div style={{ display: "flex", gap: 10 }}>
                 <button onClick={() => setShowConfirm(false)} disabled={submitting}
                   style={{ flex: 1, padding: "13px", borderRadius: 12, border: `1px solid ${t.border}`, background: "none", color: t.subtext, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>

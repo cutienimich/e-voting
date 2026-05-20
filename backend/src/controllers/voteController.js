@@ -42,14 +42,15 @@ export const castVote = async (req, res) => {
 
     // Save all votes to DB
     await prisma.vote.createMany({
-      data: valid.map(c => ({
+      data: valid.map((c, index) => ({
         studentId: req.user.id,
         electionId,
         candidateId: c.id,
-        txHash: receipt.hash,
+        txHash: `${receipt.hash}-${index}`,
         hashedStudentId
       }))
     });
+    console.log("Creating votes for candidates:", valid.length);
 
     return res.json({ success: true, message: "Votes cast", data: { txHash: receipt.hash } });
   } catch (err) {
