@@ -70,3 +70,40 @@ export const checkVoteStatus = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+export const getMyVotes = async (req, res) => {
+  try {
+    const votes = await prisma.vote.findMany({
+      where: { studentId: req.user.id },
+      include: {
+        election: true,
+        candidate: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const grouped = {};
+    for (const v of votes) {
+      const id = v.electionId;
+      if (!grouped[id]) {
+        grouped[id] = {
+          electionId: id,
+          electionName: v.election?.name || `Election #${id}`,
+          votedAt: v.createdAt,
+          txHash: v.txHash?.split("-")[0] || null,
+          ballots: [],
+        };
+      }
+      grouped[id].ballots.push({
+        position: v.candidate?.position || "—",
+        candidateName: v.candidate?.name || "—",
+        partyList: null,
+      });
+    }
+
+    return res.json({ success: true, data: Object.values(grouped) });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};

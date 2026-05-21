@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import VotingActivity from "@/components/VotingActivity";
+
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -63,7 +65,6 @@ export default function ProfilePage() {
   const [mounted, setMounted] = useState(false);
   const [student, setStudent] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [votes, setVotes] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Edit profile
@@ -99,7 +100,6 @@ export default function ProfilePage() {
   const streamRef = useRef(null);
 
   // Selected Vote
-  const [selectedVote, setSelectedVote] = useState(null);
 
   const router = useRouter();
 
@@ -646,42 +646,16 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
-
-              {/* VOTING ACTIVITY */}
-              <div className="section-card fade-up">
-                <div className="section-title">Voting Activity</div>
-                <div className="row-item">
-                  <span className="row-label">Elections participated</span>
-                  <span style={{ fontSize: 20, fontWeight: 700, color: "#2D8C4E" }}>{votes.length}</span>
-                </div>
-                {votes.length === 0 ? (
-  <div style={{ padding: "20px", textAlign: "center", borderTop: `1px solid ${t.border}` }}>
-    <div style={{ fontSize: 32, marginBottom: 8 }}>🗳️</div>
-    <p style={{ fontSize: 13, color: t.subtext }}>No votes cast yet.</p>
-  </div>
-) : votes.map((vote, i) => (
-  <div
-    key={i}
-    className="vote-item"
-    onClick={() => setSelectedVote(vote)}
-    style={{ cursor: "pointer", transition: "background 0.15s" }}
-    onMouseEnter={e => e.currentTarget.style.background = "rgba(45,140,78,0.05)"}
-    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-  >
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-      <div style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{vote.electionName}</div>
-      <svg width="15" height="15" fill="none" stroke={t.subtext} strokeWidth="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
-    </div>
-    <div style={{ fontSize: 12, color: t.subtext }}>
-      {new Date(vote.votedAt).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
-      {vote.ballots?.length ? ` · ${vote.ballots.length} position${vote.ballots.length > 1 ? "s" : ""}` : ""}
-    </div>
-    <div style={{ marginTop: 6 }}>
-      <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 100, background: "rgba(45,140,78,0.1)", color: "#2D8C4E", border: "1px solid rgba(45,140,78,0.2)" }}>✓ Voted</span>
-    </div>
-  </div>
-))}
-              </div>
+                
+                {/* VOTING ACTIVITY */}
+<div className="fade-up">
+  <VotingActivity
+    dark={dark}
+    student={student}
+    profile={profile}
+    onRedirect={(path) => router.push(path)}
+  />
+</div>
 
               {/* ACCOUNT & SECURITY */}
               <div className="section-card fade-up">
@@ -789,95 +763,6 @@ export default function ProfilePage() {
         </div>
       </div>
       
-         {/* ── BALLOT RECEIPT BOTTOM SHEET ── */}
-    {selectedVote && (
-  <div
-    className="face-overlay"
-    onClick={(e) => { if (e.target === e.currentTarget) setSelectedVote(null); }}
-  >
-    <div className="face-sheet" style={{ maxHeight: "85vh", overflowY: "auto" }}>
-      {/* Sheet header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div>
-          <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: 20, fontWeight: 800, color: t.text }}>Ballot Receipt</h2>
-          <p style={{ fontSize: 13, color: t.subtext, marginTop: 2 }}>Your official voting record</p>
-        </div>
-        <button onClick={() => setSelectedVote(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-          <svg width="22" height="22" fill="none" stroke={t.subtext} strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
-        </button>
-      </div>
-
-      {/* Receipt card */}
-      <div style={{
-        background: "#faf9f7",
-        borderRadius: 14,
-        padding: "20px 18px 18px",
-        position: "relative",
-        border: "1px solid #e5e4de",
-      }}>
-        {/* Stamp */}
-        <div style={{
-          position: "absolute", top: 16, right: 16,
-          width: 52, height: 52, borderRadius: "50%",
-          border: "3px solid rgba(45,140,78,0.35)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          transform: "rotate(-18deg)",
-        }}>
-          <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(45,140,78,0.6)", textAlign: "center", lineHeight: 1.3, textTransform: "uppercase", letterSpacing: "0.05em" }}>Vote<br/>Cast</span>
-        </div>
-
-        {/* Receipt header */}
-        <div style={{ textAlign: "center", borderBottom: "1px dashed #ccc", paddingBottom: 14, marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 4 }}>
-            <div style={{ width: 26, height: 26, borderRadius: 7, background: "linear-gradient(135deg, #1B4D2E, #2D8C4E)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ color: "white", fontWeight: 800, fontSize: 11, fontFamily: "Playfair Display, serif" }}>i</span>
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#1a1a18", fontFamily: "Playfair Display, serif" }}>iboto</span>
-          </div>
-          <div style={{ fontSize: 10, color: "#706f69", marginBottom: 6 }}>Official Digital Ballot Receipt</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#1a1a18" }}>{selectedVote.electionName}</div>
-          <div style={{ fontSize: 11, color: "#706f69", marginTop: 2 }}>
-            {new Date(selectedVote.votedAt).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}
-            {" · "}
-            {new Date(selectedVote.votedAt).toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}
-          </div>
-        </div>
-
-        {/* Ballot rows */}
-        {selectedVote.ballots?.length > 0 && (
-          <>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#706f69", marginBottom: 8 }}>Votes cast</div>
-            {selectedVote.ballots.map((b, i) => (
-              <div key={i} style={{
-                display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-                padding: "7px 0",
-                borderBottom: i < selectedVote.ballots.length - 1 ? "1px solid #e5e4de" : "none",
-                gap: 8,
-              }}>
-                <span style={{ fontSize: 11, color: "#706f69", flexShrink: 0, width: 110, paddingTop: 1 }}>{b.position}</span>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1a1a18" }}>{b.candidateName}</div>
-                  {b.partyList && <div style={{ fontSize: 10, color: "#706f69", marginTop: 1 }}>{b.partyList}</div>}
-                </div>
-              </div>
-            ))}
-          </>
-        )}
-
-        {/* Footer */}
-        <div style={{ borderTop: "1px dashed #ccc", marginTop: 14, paddingTop: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(45,140,78,0.08)", borderRadius: 10, padding: "10px 14px" }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#2D8C4E", flexShrink: 0 }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#2D8C4E" }}>Your vote has been recorded on the blockchain</span>
-          </div>
-          <p style={{ fontSize: 11, color: "#706f69", marginTop: 8, lineHeight: 1.5 }}>
-            This receipt confirms your participation. Your choices are encrypted and cannot be altered or traced back to you.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-    )}
 {/* ── FACE ENROLLMENT BOTTOM SHEET ── */}
       {/* ── FACE ENROLLMENT BOTTOM SHEET ── */}
       {showFaceEnroll && (
