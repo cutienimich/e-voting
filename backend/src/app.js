@@ -9,6 +9,7 @@ import voteRoutes from "./routes/vote.js";
 import electionRoutes from "./routes/election.js";
 import adminRoutes from "./routes/admin.js";
 import faceRoutes from "./routes/face.js";
+import candidateRoutes from "./routes/candidates.js"
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use("/api/vote", voteRoutes);
 app.use("/api/elections", electionRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/face", faceRoutes);
+app.use("/api/candidates", candidateRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ success: true, message: "Server alive" });

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { apiFetch } from "@/utils/api";
 
 const POSITIONS = [
   "President",
@@ -53,17 +54,11 @@ useEffect(() => {
     localStorage.setItem("iboto-theme", next ? "dark" : "light");
   };
 
-  const fetchElection = async () => {
+ const fetchElection = async () => {
   try {
-    const token = localStorage.getItem("iboto-access-token");
-    console.log("TOKEN:", token);
-    console.log("ELECTION ID:", electionId);
-    
-    const res = await fetch(`http://localhost:5000/api/elections/${electionId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const res = await apiFetch(`/api/elections/${electionId}`);
+    if (!res) return; // ← expired, nag-redirect na sa login
     const data = await res.json();
-    console.log("FULL RESPONSE:", data); // SHOW ME THIS
     if (data.success) setElection(data.data);
   } catch (err) { console.error(err); }
   finally { setLoading(false); setChecking(false); }

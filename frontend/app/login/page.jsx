@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [cameraReady, setCameraReady] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [countdown, setCountdown] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const router = useRouter();
@@ -113,7 +114,8 @@ export default function LoginPage() {
         localStorage.setItem("iboto-refresh-token", data.data.refreshToken);
         localStorage.setItem("iboto-student", JSON.stringify({
           name: data.data.name,
-          studentId: data.data.studentId
+          studentId: data.data.studentId,
+          faceEnrolled: data.data.faceEnrolled || false
         }));
         router.push("/elections");
         return;
@@ -124,7 +126,8 @@ export default function LoginPage() {
       localStorage.setItem("iboto-refresh-token", data.data?.refreshToken || "temp");
       localStorage.setItem("iboto-student", JSON.stringify({
         name: data.data.name,
-        studentId: data.data.studentId
+        studentId: data.data.studentId,
+        faceEnrolled: data.data.faceEnrolled || false
       }));
       router.push("/elections");
     } catch {
@@ -178,9 +181,9 @@ export default function LoginPage() {
       localStorage.setItem("iboto-refresh-token", data.data.refreshToken);
       localStorage.setItem("iboto-student", JSON.stringify({
         name: data.data.name,
-        studentId: data.data.studentId
+        studentId: data.data.studentId,
+        faceEnrolled: data.data.faceEnrolled || false
       }));
-
       stopCamera();
       router.push("/elections");
     } catch {
@@ -191,11 +194,13 @@ export default function LoginPage() {
 
   if (!mounted) return null;
 
-  return (
-    // OUTER — white (light) or near-black (dark), centers phone column
-    <div style={{ background: dark ? "#0A0A0A" : "#FFFFFF", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif", display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
+  // Eye icon SVG helper
+  const EyeIcon = ({ show }) => show
+    ? <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+    : <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
 
-      {/* PHONE COLUMN — dirty white (light) or dark, max 430px */}
+  return (
+    <div style={{ background: dark ? "#0A0A0A" : "#FFFFFF", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif", display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
       <div style={{ background: t.bg, color: t.text, width: "100%", maxWidth: 430, minHeight: "100vh", boxShadow: dark ? "0 0 80px rgba(0,0,0,0.6)" : "0 0 60px rgba(0,0,0,0.08)", transition: "all 0.3s ease" }}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@700;800&display=swap');
@@ -214,6 +219,23 @@ export default function LoginPage() {
           }
           .input-field:focus { border-color: #2D8C4E; box-shadow: 0 0 0 3px rgba(45,140,78,0.12); }
           .input-field::placeholder { color: ${t.subtext}; opacity: 0.7; }
+          .input-wrapper { position: relative; }
+          .input-wrapper .input-field { padding-right: 46px; }
+          .eye-btn {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: ${t.subtext};
+            display: flex;
+            align-items: center;
+            padding: 0;
+            transition: color 0.2s;
+          }
+          .eye-btn:hover { color: #2D8C4E; }
           .btn-primary {
             background: linear-gradient(135deg, #1B4D2E, #2D8C4E);
             color: white;
@@ -310,7 +332,7 @@ export default function LoginPage() {
           }
         `}</style>
 
-        {/* NAV — back button left, logo center, toggle right */}
+        {/* NAV */}
         <nav style={{ padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${t.border}`, position: "sticky", top: 0, background: t.bg, zIndex: 100 }}>
           <button className="btn-ghost" onClick={() => step === 2 ? setStep(1) : router.push("/")}>
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -356,14 +378,22 @@ export default function LoginPage() {
 
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: t.subtext, marginBottom: 8 }}>Password</div>
-                  <input
-                    className="input-field"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={form.password}
-                    onChange={e => update("password", e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && handleCredentials()}
-                  />
+                  <div className="input-wrapper">
+                    <input
+                      className="input-field"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter your password"
+                      value={form.password}
+                      onChange={e => update("password", e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && handleCredentials()}
+                    />
+                    <button className="eye-btn" onClick={() => setShowPassword(p => !p)} tabIndex={-1}>
+                      {showPassword
+                        ? <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        : <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      }
+                    </button>
+                  </div>
                 </div>
 
                 {error && <div className="error-box">{error}</div>}
@@ -392,7 +422,6 @@ export default function LoginPage() {
                 Position your face inside the circle and press scan.
               </p>
 
-              {/* CAMERA */}
               <div style={{ position: "relative", borderRadius: 20, overflow: "hidden", background: "#000", aspectRatio: "4/3", marginBottom: 20 }}>
                 <video
                   ref={videoRef}
@@ -402,13 +431,11 @@ export default function LoginPage() {
                   style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }}
                   onLoadedMetadata={() => setCameraReady(true)}
                 />
-
                 <div className="face-overlay">
                   <div className="face-guide">
                     {scanning && <div className="scan-line" />}
                   </div>
                 </div>
-
                 {countdown && (
                   <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }}>
                     <div style={{ position: "relative", width: 80, height: 80, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -417,7 +444,6 @@ export default function LoginPage() {
                     </div>
                   </div>
                 )}
-
                 {!cameraReady && (
                   <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: t.card, gap: 12 }}>
                     <svg width="40" height="40" fill="none" stroke={t.subtext} strokeWidth="1.5" viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
@@ -446,15 +472,14 @@ export default function LoginPage() {
             </div>
           )}
         </div>
-
-      </div>{/* end phone column */}
-    </div>  /* end outer wrapper */
+      </div>
+    </div>
   );
 }
 
 const theme = {
   light: {
-    bg: "#F5F3EE",       // dirty white — same as landing
+    bg: "#F5F3EE",
     card: "#ECEAE4",
     input: "#ECEAE4",
     text: "#0D0D0D",

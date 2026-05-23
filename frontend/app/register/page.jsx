@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 export default function RegisterPage() {
   const [dark, setDark] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [step, setStep] = useState(1); // 1=student id, 2=gmail+password, 3=otp, 4=success
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [studentInfo, setStudentInfo] = useState(null);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const otpRefs = useRef([]);
   const cooldownRef = useRef(null);
   const router = useRouter();
@@ -79,7 +81,6 @@ export default function RegisterPage() {
     otpRefs.current[Math.min(pasted.length, 5)]?.focus();
   };
 
-  // STEP 1 — validate student ID
   const handleValidateStudent = async () => {
     if (!form.studentId.trim()) { setError("Student ID is required"); return; }
     setLoading(true);
@@ -102,7 +103,6 @@ export default function RegisterPage() {
     }
   };
 
-  // STEP 2 — collect gmail + password, send OTP
   const handleSendOtp = async () => {
     if (!form.email.trim()) { setError("Gmail address is required"); return; }
     if (!/^[^\s@]+@gmail\.com$/.test(form.email.trim())) { setError("Must be a valid Gmail address (@gmail.com)"); return; }
@@ -129,7 +129,6 @@ export default function RegisterPage() {
     }
   };
 
-  // STEP 3 — verify OTP + register
   const handleVerifyOtp = async () => {
     const code = otp.join("");
     if (code.length < 6) { setError("Enter the complete 6-digit code"); return; }
@@ -203,6 +202,23 @@ export default function RegisterPage() {
           }
           .input-field:focus { border-color: #2D8C4E; box-shadow: 0 0 0 3px rgba(45,140,78,0.12); }
           .input-field::placeholder { color: ${t.subtext}; opacity: 0.7; }
+          .input-wrapper { position: relative; }
+          .input-wrapper .input-field { padding-right: 46px; }
+          .eye-btn {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: ${t.subtext};
+            display: flex;
+            align-items: center;
+            padding: 0;
+            transition: color 0.2s;
+          }
+          .eye-btn:hover { color: #2D8C4E; }
           .btn-primary {
             background: linear-gradient(135deg, #1B4D2E, #2D8C4E); color: white;
             border: none; border-radius: 12px; padding: 15px 32px; font-size: 16px;
@@ -291,7 +307,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* ── STEP 1 — STUDENT ID ── */}
+          {/* STEP 1 */}
           {step === 1 && (
             <div className="fade-up">
               <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: 28, fontWeight: 800, color: t.text, marginBottom: 8, letterSpacing: "-0.5px" }}>
@@ -324,7 +340,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* ── STEP 2 — GMAIL + PASSWORD ── */}
+          {/* STEP 2 */}
           {step === 2 && (
             <div className="fade-up">
               <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: 28, fontWeight: 800, color: t.text, marginBottom: 8, letterSpacing: "-0.5px" }}>
@@ -361,24 +377,40 @@ export default function RegisterPage() {
                 </div>
                 <div>
                   <div className="lbl">Password</div>
-                  <input
-                    className="input-field"
-                    type="password"
-                    placeholder="At least 8 characters"
-                    value={form.password}
-                    onChange={e => update("password", e.target.value)}
-                  />
+                  <div className="input-wrapper">
+                    <input
+                      className="input-field"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="At least 8 characters"
+                      value={form.password}
+                      onChange={e => update("password", e.target.value)}
+                    />
+                    <button className="eye-btn" onClick={() => setShowPassword(p => !p)} tabIndex={-1}>
+                      {showPassword
+                        ? <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        : <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      }
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <div className="lbl">Confirm Password</div>
-                  <input
-                    className="input-field"
-                    type="password"
-                    placeholder="Repeat your password"
-                    value={form.confirmPassword}
-                    onChange={e => update("confirmPassword", e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && handleSendOtp()}
-                  />
+                  <div className="input-wrapper">
+                    <input
+                      className="input-field"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Repeat your password"
+                      value={form.confirmPassword}
+                      onChange={e => update("confirmPassword", e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && handleSendOtp()}
+                    />
+                    <button className="eye-btn" onClick={() => setShowConfirmPassword(p => !p)} tabIndex={-1}>
+                      {showConfirmPassword
+                        ? <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        : <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      }
+                    </button>
+                  </div>
                 </div>
                 {error && <div className="error-box">{error}</div>}
                 <button className="btn-primary" onClick={handleSendOtp} disabled={loading}>
@@ -388,7 +420,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* ── STEP 3 — OTP ── */}
+          {/* STEP 3 */}
           {step === 3 && (
             <div className="fade-up">
               <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: 28, fontWeight: 800, color: t.text, marginBottom: 8, letterSpacing: "-0.5px" }}>
@@ -439,7 +471,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* ── STEP 4 — SUCCESS ── */}
+          {/* STEP 4 */}
           {step === 4 && (
             <div className="fade-up" style={{ textAlign: "center", paddingTop: 32 }}>
               <div style={{ width: 80, height: 80, borderRadius: "50%", background: "rgba(45,140,78,0.12)", border: "2px solid #2D8C4E", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
@@ -471,7 +503,7 @@ export default function RegisterPage() {
           )}
 
         </div>
-      </div>{/* end phone column */}
+      </div>
     </div>
   );
 }

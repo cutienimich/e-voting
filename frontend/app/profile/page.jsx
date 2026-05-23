@@ -6,9 +6,6 @@ import VotingActivity from "@/components/VotingActivity";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-// ── Token refresh utility ─────────────────────────────────────
-// Tries to get a new access token using the stored refresh token.
-// Returns the new access token string, or null if refresh fails.
 const refreshAccessToken = async () => {
   const refreshToken = localStorage.getItem("iboto-refresh-token");
   if (!refreshToken) return null;
@@ -20,22 +17,18 @@ const refreshAccessToken = async () => {
     });
     const data = await res.json();
     if (data.success && data.accessToken) {
-  localStorage.setItem("iboto-access-token", data.accessToken);
-  return data.accessToken;
-} else if (data.success && data.data?.accessToken) {
-  localStorage.setItem("iboto-access-token", data.data.accessToken);
-  return data.data.accessToken;
-}
+      localStorage.setItem("iboto-access-token", data.accessToken);
+      return data.accessToken;
+    } else if (data.success && data.data?.accessToken) {
+      localStorage.setItem("iboto-access-token", data.data.accessToken);
+      return data.data.accessToken;
+    }
     return null;
   } catch {
     return null;
   }
 };
 
-// ── Authenticated fetch with auto-retry on 401 ────────────────
-// Wraps fetch: if the first attempt returns 401, refreshes the
-// token once and retries. If refresh also fails, clears storage
-// and redirects to login via the returned { __redirect } flag.
 const authFetch = async (url, options = {}) => {
   const makeHeaders = (token) => ({
     ...options.headers,
@@ -48,12 +41,10 @@ const authFetch = async (url, options = {}) => {
   if (res.status === 401) {
     const newToken = await refreshAccessToken();
     if (!newToken) {
-      // Refresh failed — session is dead, signal caller to redirect
       ["iboto-access-token", "iboto-refresh-token", "iboto-student", "iboto-device-token"]
         .forEach((k) => localStorage.removeItem(k));
       return { __redirect: "/login" };
     }
-    // Retry once with fresh token
     res = await fetch(url, { ...options, headers: makeHeaders(newToken) });
   }
 
@@ -89,6 +80,10 @@ export default function ProfilePage() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  // Password visibility toggles
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNextPw, setShowNextPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
 
   // Face enrollment
   const [showFaceEnroll, setShowFaceEnroll] = useState(false);
@@ -99,11 +94,8 @@ export default function ProfilePage() {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
 
-  // Selected Vote
-
   const router = useRouter();
 
-  // ── Helper: handle redirect flag from authFetch ───────────────
   const checkRedirect = (res) => {
     if (res?.__redirect) { router.push(res.__redirect); return true; }
     return false;
@@ -140,9 +132,7 @@ export default function ProfilePage() {
     try {
       const res = await authFetch(`${API}/api/auth/me`);
       if (checkRedirect(res)) return;
-
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
-
       const profileData = await res.json();
       if (profileData.success) {
         const d = profileData.data;
@@ -171,7 +161,6 @@ export default function ProfilePage() {
     return { yearLevel: parts[0] || "", section: parts[1] || "" };
   };
 
-  // ── Face Enrollment ──────────────────────────────────────────
   const startCamera = async () => {
     setFaceError("");
     setFaceStep("camera");
@@ -230,7 +219,6 @@ export default function ProfilePage() {
         body: JSON.stringify({ imageBase64: capturedImage }),
       });
       if (checkRedirect(res)) return;
-
       const data = await res.json();
       if (!data.success) {
         setFaceError(data.message || "Enrollment failed. Try again.");
@@ -239,6 +227,11 @@ export default function ProfilePage() {
       }
       setFaceStep("success");
       setProfile((prev) => ({ ...prev, faceEnrolled: true }));
+      const currentStudent = JSON.parse(localStorage.getItem("iboto-student") || "{}");
+      localStorage.setItem("iboto-student", JSON.stringify({
+        ...currentStudent,
+        faceEnrolled: true
+      }));
       setTimeout(() => {
         setShowFaceEnroll(false);
         setFaceStep("idle");
@@ -265,7 +258,6 @@ export default function ProfilePage() {
     setCapturedImage(null);
   };
 
-  // ── Email OTP ──────────────────────────────────────────────
   const handleSendOtp = async () => {
     setOtpError("");
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -279,7 +271,6 @@ export default function ProfilePage() {
         body: JSON.stringify({ newEmail }),
       });
       if (checkRedirect(res)) return;
-
       const data = await res.json();
       if (!data.success) { setOtpError(data.message || "Failed to send OTP."); return; }
       setEmailStep("otp-sent");
@@ -299,7 +290,6 @@ export default function ProfilePage() {
         body: JSON.stringify({ otp: otpValue, newEmail }),
       });
       if (checkRedirect(res)) return;
-
       const data = await res.json();
       if (!data.success) { setOtpError(data.message || "Invalid or expired OTP."); return; }
       setEmailStep("verified");
@@ -342,7 +332,6 @@ export default function ProfilePage() {
         }),
       });
       if (checkRedirect(res)) return;
-
       const data = await res.json();
       if (!data.success) { setEditError(data.message || "Failed to update profile."); return; }
       setProfile((prev) => ({ ...prev, email: editForm.email, birthday: editForm.birthday, yearLevel, section, course: editForm.course, address: editForm.address }));
@@ -382,7 +371,6 @@ export default function ProfilePage() {
         body: JSON.stringify({ currentPassword: passwordForm.current, newPassword: passwordForm.next }),
       });
       if (checkRedirect(res)) return;
-
       const data = await res.json();
       if (!data.success) { setPasswordError(data.message); return; }
       setPasswordSuccess(true);
@@ -404,6 +392,11 @@ export default function ProfilePage() {
     ["iboto-access-token","iboto-refresh-token","iboto-student","iboto-device-token"].forEach((k) => localStorage.removeItem(k));
     router.push("/");
   };
+
+  // Eye icon helper
+  const EyeIcon = ({ show }) => show
+    ? <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+    : <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
 
   if (!mounted) return null;
   const t = dark ? theme.dark : theme.light;
@@ -450,6 +443,10 @@ export default function ProfilePage() {
           .input-field:disabled { opacity: 0.45; cursor: not-allowed; }
           .input-label { font-size: 12px; font-weight: 600; color: ${t.subtext}; margin-bottom: 6px; display: block; letter-spacing: 0.02em; }
           .input-group { display: flex; flex-direction: column; gap: 4px; }
+          .pw-wrapper { position: relative; }
+          .pw-wrapper .input-field { padding-right: 46px; }
+          .eye-btn { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: ${t.subtext}; display: flex; align-items: center; padding: 0; transition: color 0.2s; }
+          .eye-btn:hover { color: #2D8C4E; }
           .error-box { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #EF4444; padding: 12px 16px; border-radius: 10px; font-size: 14px; }
           .success-box { background: rgba(45,140,78,0.1); border: 1px solid rgba(45,140,78,0.3); color: #2D8C4E; padding: 12px 16px; border-radius: 10px; font-size: 14px; }
           .info-box { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.25); color: #3B82F6; padding: 12px 16px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
@@ -459,9 +456,6 @@ export default function ProfilePage() {
           .resend-btn { background: none; border: none; color: #2D8C4E; font-size: 13px; font-family: 'DM Sans', sans-serif; cursor: pointer; font-weight: 600; padding: 0; }
           .resend-btn:disabled { opacity: 0.4; cursor: not-allowed; }
           .email-display-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-radius: 12px; border: 1.5px solid ${t.border}; background: ${t.bg}; }
-          .vote-item { padding: 14px 20px; border-top: 1px solid ${t.border}; }
-          .hash-text { font-size: 11px; color: ${t.subtext}; font-family: monospace; word-break: break-all; margin-top: 4px; cursor: pointer; transition: color 0.2s; }
-          .hash-text:hover { color: #2D8C4E; }
           .skeleton { background: linear-gradient(90deg, ${t.card} 25%, ${t.border} 50%, ${t.card} 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 12px; }
           @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
           @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
@@ -578,7 +572,6 @@ export default function ProfilePage() {
 
                 {isEditing && (
                   <div style={{ padding: "12px 20px 20px", borderTop: `1px solid ${t.border}`, display: "flex", flexDirection: "column", gap: 16 }}>
-                    {/* EMAIL */}
                     <div className="input-group">
                       <label className="input-label">Email Address</label>
                       {!isChangingEmail && emailStep !== "verified" && (
@@ -616,23 +609,19 @@ export default function ProfilePage() {
                         </div>
                       )}
                     </div>
-                    {/* BIRTHDAY */}
                     <div className="input-group">
                       <label className="input-label">Birthday</label>
                       <input className="input-field" type="date" value={editForm.birthday} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setEditForm((p) => ({ ...p, birthday: e.target.value }))} style={{ colorScheme: dark ? "dark" : "light" }} />
                     </div>
-                    {/* COURSE */}
                     <div className="input-group">
                       <label className="input-label">Course / Program <span className="required-star">*</span></label>
                       <input className="input-field" type="text" placeholder="e.g. BSCS, BSIT, BSNursing…" value={editForm.course} onChange={(e) => setEditForm((p) => ({ ...p, course: e.target.value }))} />
                     </div>
-                    {/* YEAR & SECTION */}
                     <div className="input-group">
                       <label className="input-label">Year & Section <span className="required-star">*</span></label>
                       <input className="input-field" type="text" placeholder="e.g. 2nd Year - Section A, 3-B…" value={editForm.yearSection} onChange={(e) => setEditForm((p) => ({ ...p, yearSection: e.target.value }))} />
                       <span style={{ fontSize: 11, color: t.subtext, marginTop: 3, paddingLeft: 2 }}>Enter your year and section together (e.g. "3rd Year - A")</span>
                     </div>
-                    {/* ADDRESS */}
                     <div className="input-group">
                       <label className="input-label">Address <span className="required-star">*</span></label>
                       <textarea className="input-field" placeholder="City, Province" rows={2} value={editForm.address} onChange={(e) => setEditForm((p) => ({ ...p, address: e.target.value }))} style={{ resize: "none", lineHeight: 1.5 }} />
@@ -646,16 +635,16 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
-                
-                {/* VOTING ACTIVITY */}
-<div className="fade-up">
-  <VotingActivity
-    dark={dark}
-    student={student}
-    profile={profile}
-    onRedirect={(path) => router.push(path)}
-  />
-</div>
+
+              {/* VOTING ACTIVITY */}
+              <div className="fade-up">
+                <VotingActivity
+                  dark={dark}
+                  student={student}
+                  profile={profile}
+                  onRedirect={(path) => router.push(path)}
+                />
+              </div>
 
               {/* ACCOUNT & SECURITY */}
               <div className="section-card fade-up">
@@ -688,7 +677,7 @@ export default function ProfilePage() {
                 </div>
 
                 {/* CHANGE PASSWORD */}
-                <div className="action-row" onClick={() => { setShowChangePassword(!showChangePassword); setPasswordError(""); setPasswordSuccess(false); }}>
+                <div className="action-row" onClick={() => { setShowChangePassword(!showChangePassword); setPasswordError(""); setPasswordSuccess(false); setShowCurrentPw(false); setShowNextPw(false); setShowConfirmPw(false); }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{ width: 32, height: 32, borderRadius: 8, background: t.border, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <svg width="15" height="15" fill="none" stroke={t.subtext} strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
@@ -699,9 +688,18 @@ export default function ProfilePage() {
                 </div>
                 {showChangePassword && (
                   <div style={{ padding: "16px 20px", borderTop: `1px solid ${t.border}`, display: "flex", flexDirection: "column", gap: 12 }}>
-                    <input className="input-field" type="password" placeholder="Current password" value={passwordForm.current} onChange={e => setPasswordForm(p => ({ ...p, current: e.target.value }))} />
-                    <input className="input-field" type="password" placeholder="New password (min. 8 characters)" value={passwordForm.next} onChange={e => setPasswordForm(p => ({ ...p, next: e.target.value }))} />
-                    <input className="input-field" type="password" placeholder="Confirm new password" value={passwordForm.confirm} onChange={e => setPasswordForm(p => ({ ...p, confirm: e.target.value }))} />
+                    <div className="pw-wrapper">
+                      <input className="input-field" type={showCurrentPw ? "text" : "password"} placeholder="Current password" value={passwordForm.current} onChange={e => setPasswordForm(p => ({ ...p, current: e.target.value }))} />
+                      <button className="eye-btn" onClick={() => setShowCurrentPw(p => !p)} tabIndex={-1}><EyeIcon show={showCurrentPw} /></button>
+                    </div>
+                    <div className="pw-wrapper">
+                      <input className="input-field" type={showNextPw ? "text" : "password"} placeholder="New password (min. 8 characters)" value={passwordForm.next} onChange={e => setPasswordForm(p => ({ ...p, next: e.target.value }))} />
+                      <button className="eye-btn" onClick={() => setShowNextPw(p => !p)} tabIndex={-1}><EyeIcon show={showNextPw} /></button>
+                    </div>
+                    <div className="pw-wrapper">
+                      <input className="input-field" type={showConfirmPw ? "text" : "password"} placeholder="Confirm new password" value={passwordForm.confirm} onChange={e => setPasswordForm(p => ({ ...p, confirm: e.target.value }))} />
+                      <button className="eye-btn" onClick={() => setShowConfirmPw(p => !p)} tabIndex={-1}><EyeIcon show={showConfirmPw} /></button>
+                    </div>
                     {passwordError && <div className="error-box">{passwordError}</div>}
                     {passwordSuccess && <div className="success-box">✓ Password changed successfully!</div>}
                     <div style={{ display: "flex", gap: 10 }}>
@@ -762,9 +760,8 @@ export default function ProfilePage() {
           ))}
         </div>
       </div>
-      
-{/* ── FACE ENROLLMENT BOTTOM SHEET ── */}
-      {/* ── FACE ENROLLMENT BOTTOM SHEET ── */}
+
+      {/* FACE ENROLLMENT BOTTOM SHEET */}
       {showFaceEnroll && (
         <div className="face-overlay" onClick={(e) => { if (e.target === e.currentTarget) handleCloseFaceEnroll(); }}>
           <div className="face-sheet">

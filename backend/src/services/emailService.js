@@ -1,30 +1,27 @@
-// services/emailService.js
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 
-const transporter = nodemailer.createTransport({
+// ← Gawa ng transporter pag kailangan lang, hindi sa startup!
+const getTransporter = () => nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
   tls: {
-    rejectUnauthorized: false, // fix self-signed cert error
+    rejectUnauthorized: false,
   },
 });
 
 // In-memory OTP store
 const otpStore = new Map();
 
-// ─── SEND EMAIL VERIFICATION OTP ──────────────────────────────────────────
-
 async function sendEmailVerification(toEmail, studentName) {
   const otp = crypto.randomInt(100000, 999999).toString();
   const expiresAt = Date.now() + 10 * 60 * 1000;
-
   otpStore.set(toEmail, { otp, expiresAt });
 
-  await transporter.sendMail({
+  await getTransporter().sendMail({
     from: `"iboto" <${process.env.EMAIL_USER}>`,
     to: toEmail,
     subject: 'iboto — Email Verification OTP',
@@ -46,11 +43,8 @@ async function sendEmailVerification(toEmail, studentName) {
   return { success: true, message: 'OTP sent to email' };
 }
 
-// ─── VERIFY EMAIL TOKEN (OTP) ─────────────────────────────────────────────
-
 function verifyEmailToken(email, submittedOtp) {
   const record = otpStore.get(email);
-
   if (!record) return { valid: false, reason: 'No OTP requested for this email' };
   if (Date.now() > record.expiresAt) {
     otpStore.delete(email);
@@ -59,20 +53,16 @@ function verifyEmailToken(email, submittedOtp) {
   if (record.otp !== submittedOtp.toString()) {
     return { valid: false, reason: 'Incorrect OTP' };
   }
-
   otpStore.delete(email);
   return { valid: true };
 }
 
-// ─── SEND PASSWORD RESET OTP ──────────────────────────────────────────────
-
 async function sendPasswordResetOTP(toEmail, studentName) {
   const otp = crypto.randomInt(100000, 999999).toString();
   const expiresAt = Date.now() + 10 * 60 * 1000;
-
   otpStore.set(toEmail, { otp, expiresAt });
 
-  await transporter.sendMail({
+  await getTransporter().sendMail({
     from: `"iboto" <${process.env.EMAIL_USER}>`,
     to: toEmail,
     subject: 'iboto — Password Reset OTP',
@@ -93,8 +83,6 @@ async function sendPasswordResetOTP(toEmail, studentName) {
 
   return { success: true, message: 'OTP sent to email' };
 }
-
-// ─── VERIFY PASSWORD RESET OTP ────────────────────────────────────────────
 
 function verifyOTP(email, submittedOtp) {
   return verifyEmailToken(email, submittedOtp);

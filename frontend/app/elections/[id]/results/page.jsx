@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ethers } from "ethers";
+import { apiFetch } from "@/utils/api";
 
 const CONTRACT_ADDRESS = "0x8199911911F511ed7dC37E571d2dDb9902101c0b";
 const AMOY_RPC_URL = "https://polygon-amoy.g.alchemy.com/v2/3SQHJ8aIh0vDZKtmJZ5wl";
@@ -57,7 +58,7 @@ export default function ResultsPage() {
   const [error, setError] = useState("");
   const [electionName, setElectionName] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  const [grouped, setGrouped] = useState({}); // { position: [{ name, voteCount, isWinner }] }
+  const [grouped, setGrouped] = useState({});
   const [totalVotes, setTotalVotes] = useState(0);
   const [blockchainId, setBlockchainId] = useState(null);
 
@@ -73,79 +74,52 @@ export default function ResultsPage() {
   }, []);
 
   useEffect(() => {
-    if (electionId) fetchResults();
+    if (!electionId) return;
+    fetchResults(false);
+
+    const interval = setInterval(() => {
+      fetchResults(true);
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [electionId]);
 
-  const fetchResults = async () => {
-  setLoading(true);
-  setError("");
-  try {
-    const token = localStorage.getItem("iboto-access-token");
-
-    // Fetch election info
-    const elecRes = await fetch(`${API}/api/elections/${electionId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const elecData = await elecRes.json();
-    if (!elecData.success) throw new Error("Election not found");
-    const election = elecData.data;
-    setElectionName(election.name);
-
-    // Fetch ALL candidates from backend
-    const candRes = await fetch(`${API}/api/candidates?electionId=${electionId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const candData = await candRes.json();
-    if (!candData.success) throw new Error("Candidates not found");
-
-    // Get vote counts from blockchain
-    const provider = new ethers.JsonRpcProvider(AMOY_RPC_URL);
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-
-    const [electionInfo, blockchainCandidates] = await Promise.all([
-      contract.getElection(election.blockchainId),
-      contract.getCandidates(election.blockchainId),
-    ]);
-
-    setIsOpen(electionInfo.isOpen);
-
-    // Map blockchain vote counts onto all backend candidates by name
-    const voteMap = {};
-    for (const bc of blockchainCandidates) {
-      voteMap[bc.name] = Number(bc.voteCount);
+  const fetchResults = async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError("");
+    try {
+      const elecRes = await apiFetch(`/api/elections/${electionId}`);
+      if (!elecRes) return;
+      const elecData = await elecRes.json();
+      if (!elecData.success) throw new Error("Election not found");
+      const election = elecData.data;
+      setElectionName(election.name);
+      setIsOpen(election.isOpen);
+      const tally = election.tally || [];
+      const groups = {};
+      for (const c of tally) {
+        const pos = c.position;
+        if (!groups[pos]) groups[pos] = [];
+        groups[pos].push({ name: c.name, voteCount: c.voteCount });
+      }
+      for (const pos of Object.keys(groups)) {
+        const maxVotes = Math.max(...groups[pos].map(c => c.voteCount));
+        groups[pos] = groups[pos]
+          .map(c => ({ ...c, isWinner: c.voteCount === maxVotes && maxVotes > 0 && !election.isOpen }))
+          .sort((a, b) => b.voteCount - a.voteCount);
+      }
+      const firstPos = Object.keys(groups)[0];
+      const correctTotal = groups[firstPos]?.reduce((s, c) => s + c.voteCount, 0) ?? 0;
+      setGrouped(groups);
+      setTotalVotes(correctTotal);
+    } catch (err) {
+      console.error("Results error:", err);
+      if (!silent) setError("Could not load results. Please try again.");
+    } finally {
+      if (!silent) setLoading(false);
     }
+  };
 
-    // Group by position
-    const groups = {};
-    for (const c of candData.data) {
-      const pos = c.position;
-      const votes = voteMap[c.name] ?? 0;
-      if (!groups[pos]) groups[pos] = [];
-      groups[pos].push({ name: c.name, voteCount: votes });
-    }
-
-    // Mark winner per position, sort
-    let total = 0;
-    for (const pos of Object.keys(groups)) {
-      const maxVotes = Math.max(...groups[pos].map(c => c.voteCount));
-      groups[pos] = groups[pos]
-        .map(c => { total += c.voteCount; return { ...c, isWinner: c.voteCount === maxVotes && maxVotes > 0 }; })
-        .sort((a, b) => b.voteCount - a.voteCount);
-    }
-
-    // Fix: total votes = sum of votes for ONE position (not all)
-    const firstPos = Object.keys(groups)[0];
-    const correctTotal = groups[firstPos]?.reduce((s, c) => s + c.voteCount, 0) ?? 0;
-
-    setGrouped(groups);
-    setTotalVotes(correctTotal);
-  } catch (err) {
-    console.error("Results error:", err);
-    setError("Could not load results. Please try again.");
-  } finally {
-    setLoading(false);
-  }
-};
   const toggleTheme = () => {
     const next = !dark;
     setDark(next);
@@ -161,7 +135,7 @@ export default function ResultsPage() {
     <div style={{ background: dark ? "#080B0A" : "#F7F5F0", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif", display: "flex", justifyContent: "center" }}>
       <div style={{ background: t.bg, color: t.text, width: "100%", maxWidth: 430, minHeight: "100vh" }}>
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Lora:wght@600;700&display=swap')
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Lora:wght@600;700&display=swap');
           * { margin: 0; padding: 0; box-sizing: border-box; }
           @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
           .fade-up { animation: fadeUp 0.35s ease forwards; }
@@ -243,6 +217,7 @@ export default function ResultsPage() {
             const candidates = grouped[pos];
             const maxVotes = Math.max(...candidates.map(c => c.voteCount));
             const winner = candidates.find(c => c.isWinner);
+            const isLeading = (c) => c.voteCount === maxVotes && maxVotes > 0;
 
             return (
               <div key={pos} className="fade-up" style={{
@@ -259,7 +234,7 @@ export default function ResultsPage() {
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: dark ? "#5cc97f" : "#1B6B3A", marginBottom: 4 }}>
                     {pos}
                   </div>
-                  {winner && (
+                  {winner && !isOpen && (
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{winner.name}</span>
                       <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 100, background: "rgba(45,140,78,0.12)", color: "#2D8C4E", border: "1px solid rgba(45,140,78,0.2)" }}>Winner</span>
@@ -272,6 +247,7 @@ export default function ResultsPage() {
                   {candidates.map((c, ci) => {
                     const pct = maxVotes > 0 ? Math.round((c.voteCount / maxVotes) * 100) : 0;
                     const totalPct = totalVotes > 0 ? ((c.voteCount / totalVotes) * 100).toFixed(1) : "0.0";
+                    const leading = isLeading(c);
 
                     return (
                       <div key={ci}>
@@ -279,20 +255,20 @@ export default function ResultsPage() {
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <div style={{
                               width: 30, height: 30, borderRadius: "50%",
-                              background: c.isWinner ? "linear-gradient(135deg, #1B4D2E, #2D8C4E)" : t.border,
+                              background: leading ? "linear-gradient(135deg, #1B4D2E, #2D8C4E)" : t.border,
                               display: "flex", alignItems: "center", justifyContent: "center",
                               fontSize: 12, fontWeight: 700,
-                              color: c.isWinner ? "white" : t.subtext,
+                              color: leading ? "white" : t.subtext,
                               flexShrink: 0,
                             }}>
                               {c.name?.charAt(0)}
                             </div>
                             <div>
-                              <span style={{ fontSize: 13, fontWeight: c.isWinner ? 700 : 500, color: t.text }}>{c.name}</span>
+                              <span style={{ fontSize: 13, fontWeight: leading ? 700 : 500, color: t.text }}>{c.name}</span>
                             </div>
                           </div>
                           <div style={{ textAlign: "right" }}>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: c.isWinner ? (dark ? "#5cc97f" : "#1B6B3A") : t.text }}>{totalPct}%</span>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: leading ? (dark ? "#5cc97f" : "#1B6B3A") : t.text }}>{totalPct}%</span>
                             <div style={{ fontSize: 11, color: t.subtext }}>{c.voteCount} votes</div>
                           </div>
                         </div>
@@ -304,7 +280,7 @@ export default function ResultsPage() {
                               "--bar-width": `${pct}%`,
                               height: "100%",
                               borderRadius: 3,
-                              background: c.isWinner
+                              background: leading
                                 ? "linear-gradient(90deg, #1B4D2E, #2D8C4E)"
                                 : (dark ? "#2a3830" : "#c8d5cc"),
                             }}

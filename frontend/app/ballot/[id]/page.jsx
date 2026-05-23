@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { apiFetch } from "@/utils/api";
 
 const POSITIONS = [
   "President","Vice President","Secretary","Assistant Secretary",
@@ -14,9 +15,10 @@ const theme = {
   dark:  { bg: "#0D1110", card: "#141A17", text: "#E8EDE9", subtext: "#7A8C80", border: "#222E27", pill: "rgba(255,255,255,0.05)" },
 };
 
-// ─── AUTH GATE ────────────────────────────────────────────────
-function AuthGate({ student, dark, t, onSuccess }) {
+function AuthGate({ student, dark, t, onSuccess, onExit }) {
   const useFace = student?.faceEnrolled;
+  console.log("STUDENT DATA:", student);
+  console.log("USE FACE:", useFace);
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -82,6 +84,14 @@ function AuthGate({ student, dark, t, onSuccess }) {
     <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 20px", fontFamily: "'DM Sans', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Lora:wght@600;700&display=swap');`}</style>
       <div style={{ width: "100%", maxWidth: 400 }}>
+
+        {/* ← X button */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+          <button onClick={onExit} style={{ background: "none", border: `1px solid ${t.border}`, borderRadius: 10, padding: "7px 10px", cursor: "pointer", color: t.subtext, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
         <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginBottom: 40 }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg, #1B4D2E, #2D8C4E)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ color: "white", fontWeight: 700, fontSize: 20, fontFamily: "Lora, serif", fontStyle: "italic" }}>i</span>
@@ -191,50 +201,45 @@ useEffect(() => {
     localStorage.setItem("iboto-theme", next ? "dark" : "light");
   };
 
-  const fetchElection = async () => {
-    try {
-      const token = localStorage.getItem("iboto-access-token");
-      const statusRes = await fetch(`http://localhost:5000/api/vote/status/${electionId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const statusData = await statusRes.json();
-      if (statusData.data?.hasVoted) {
-        setAlreadyVoted(true);
-        return;
-      }
-      const res = await fetch(`http://localhost:5000/api/elections/${electionId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.success) setElection(data.data);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); setChecking(false); }
-  };
+ const fetchElection = async () => {
+  try {
+    const statusRes = await apiFetch(`/api/vote/status/${electionId}`);
+    if (!statusRes) return; // ← expired
+    const statusData = await statusRes.json();
+    if (statusData.data?.hasVoted) { setAlreadyVoted(true); return; }
+
+    const res = await apiFetch(`/api/elections/${electionId}`);
+    if (!res) return; // ← expired
+    const data = await res.json();
+    if (data.success) setElection(data.data);
+  } catch (err) { console.error(err); }
+  finally { setLoading(false); setChecking(false); }
+};
+
+const handleSubmit = async () => {
+  setSubmitting(true); setSubmitError("");
+  try {
+    const candidateIds = Object.values(votes);
+    const res = await apiFetch("/api/vote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ electionId, candidateIds }),
+    });
+    if (!res) return; // ← expired
+    const data = await res.json();
+    if (!data.success) {
+      if (data.message?.toLowerCase().includes("already voted")) { setAlreadyVoted(true); setShowConfirm(false); return; }
+      throw new Error(data.message);
+    }
+    setSubmitted(true);
+    setShowConfirm(false);
+  } catch (err) {
+    setSubmitError(err.message || "Failed to submit votes. Try again.");
+  } finally { setSubmitting(false); }
+};
 
   const handleVote = (position, candidateId) => {
     setVotes(prev => ({ ...prev, [position]: candidateId }));
-  };
-
-  const handleSubmit = async () => {
-    setSubmitting(true); setSubmitError("");
-    try {
-      const token = localStorage.getItem("iboto-access-token");
-      const candidateIds = Object.values(votes);
-      const res = await fetch("http://localhost:5000/api/vote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ electionId, candidateIds }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        if (data.message?.toLowerCase().includes("already voted")) { setAlreadyVoted(true); setShowConfirm(false); return; }
-        throw new Error(data.message);
-      }
-      setSubmitted(true);
-      setShowConfirm(false);
-    } catch (err) {
-      setSubmitError(err.message || "Failed to submit votes. Try again.");
-    } finally { setSubmitting(false); }
   };
 
   // ── RENDER ORDER ──────────────────────────────────────────────
@@ -271,7 +276,7 @@ useEffect(() => {
 
   // 3. Auth gate
   if (!authenticated) return (
-    <AuthGate student={student} dark={dark} t={t} onSuccess={() => setAuthenticated(true)} />
+    <AuthGate student={student} dark={dark} t={t} onSuccess={() => setAuthenticated(true)} onExit={() => router.back()} />
   );
 
   // 4. Success screen

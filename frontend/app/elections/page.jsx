@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/utils/api";
 
 export default function ElectionsPage() {
   const [dark, setDark] = useState(false);
@@ -30,19 +31,16 @@ export default function ElectionsPage() {
 
   const fetchElections = async () => {
     try {
-      const token = localStorage.getItem("iboto-access-token");
-      const res = await fetch("http://localhost:5000/api/elections", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.success) setElections(data.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+    const res = await apiFetch("/api/elections");
+    if (!res) return; // ← expired, nag-redirect na
+    const data = await res.json();
+    if (data.success) setElections(data.data);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+};
   const handleLogout = async () => {
     const refreshToken = localStorage.getItem("iboto-refresh-token");
     if (refreshToken) {

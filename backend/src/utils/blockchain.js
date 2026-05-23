@@ -17,8 +17,13 @@ const ABI = [
   "function castBulkVote(uint256 _electionId, uint256[] calldata _candidateIds, bytes32 _hashedStudentId) external"
 ];
 
+const rawKey = process.env.ADMIN_WALLET_PRIVATE_KEY;
+if (!rawKey) throw new Error("ADMIN_WALLET_PRIVATE_KEY is missing sa .env!");
+
+const privateKey = rawKey.startsWith("0x") ? rawKey : `0x${rawKey}`;
+
 const provider = new ethers.JsonRpcProvider(process.env.AMOY_RPC_URL);
-const wallet = new ethers.Wallet(process.env.ADMIN_WALLET_PRIVATE_KEY, provider);
+const wallet = new ethers.Wallet(privateKey, provider);
 const contract = new ethers.Contract(process.env.CONTRACT_ADDRESS, ABI, wallet);
 const readContract = new ethers.Contract(process.env.CONTRACT_ADDRESS, ABI, provider);
 
